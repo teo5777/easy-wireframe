@@ -1,8 +1,12 @@
-# Easy Wireframe
+# Easy Wireframe · 移动端原型 / 页面流程线框图
 
-一个生成**移动端 App 产品原型 / 页面流程线框图**的 Skill：把"想做什么 App、有哪几页、怎么点击流转"变成一张协调、专业的线框流程图——多个 iPhone 尺寸(375×812)页面横向平铺，箭头标注页面间跳转。产出是**零依赖的单文件 HTML**。
+![License](https://img.shields.io/github/license/teo5777/easy-wireframe?style=flat-square)
+![Skill](https://img.shields.io/badge/Skill-Agent-111111?style=flat-square)
+![Single-file HTML](https://img.shields.io/badge/HTML-Single--file-0A7CFF?style=flat-square)
+![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-6B5B95?style=flat-square)
+![Codex](https://img.shields.io/badge/Codex-Supported-222222?style=flat-square)
 
-> 通用 Skill，遵循 `SKILL.md` 约定，可被 Claude Code、Codex 等支持 skill 的编码 Agent 使用。
+一个适配 Claude Code / Codex 等 Agent 环境的 Skill：把"想做什么 App、有哪几页、怎么点击流转"变成一张协调、专业的**移动端线框流程图**——多个 iPhone 尺寸(375×812)页面横向平铺，箭头标注页面间跳转。产出是**零依赖的单文件 HTML**。
 
 ## 风格定位
 
@@ -10,6 +14,40 @@
 - **极简黑白灰**：一套冷白灰 + 近黑文字，无彩色。
 - **iOS / Apple HIG 标准**：尺寸、字号、图标都按设计系统锁定。
 - **平铺 + 箭头**：所有页面横排，两页之间用箭头说明"点击了什么 → 到哪一页"。
+
+---
+
+## 30 秒开始
+
+```bash
+npx skills add https://github.com/teo5777/easy-wireframe --skill easy-wireframe
+```
+
+也可以直接把这段话发给有 shell 权限的 AI Agent：
+
+```text
+帮我安装 easy-wireframe。请把 https://github.com/teo5777/easy-wireframe 克隆到 ~/.claude/skills/easy-wireframe，安装完成后检查 SKILL.md、design-system.md、components.md、template.html、example.html 是否存在。
+```
+
+已经安装过的话，用这段话更新：
+
+```text
+帮我更新 easy-wireframe。请进入 ~/.claude/skills/easy-wireframe 执行 git pull，然后告诉我当前最新 commit。
+```
+
+安装后直接对 Agent 说：
+
+```text
+帮我做一个外卖 App 的原型，大概 5 个页面，从首页点进商家、加购物车、下单、支付。
+```
+
+也可以试这些请求：
+
+```text
+把这个登录流程做成线框图：启动页 → 登录页 → 验证码页 → 首页。
+帮我做一个习惯打卡 App，首页分别能进入「查看习惯」和「新建习惯」两条线。
+给我的健身 App 加一个数据统计页，要有三栏数字摘要、进度条和柱状图。
+```
 
 ## 文件说明
 
@@ -20,6 +58,23 @@
 | `template.html` | 骨架文件：已含全部 CSS + 标注 JS + 截图 JS，复制后填充 `.flow` |
 | `components.md` | 可复制的 HTML 积木：导航栏 / 列表 / 对话 / 统计 / 箭头 / 分支布局 |
 | `example.html` | 黄金样例（轻记·习惯打卡，4 页），演示列表 / 详情 / 统计 / 分支布局 |
+
+## 效果
+
+- 📱 **移动端线框流程图**：多个 iPhone 尺寸页面横向平铺，箭头标注页面间跳转
+- 🎨 **极简黑白灰 + Apple HIG**：尺寸、字号、图标按设计系统锁定，真机宽度下短文案不折行
+- 🧩 **现成积木**：导航栏 / 列表 / 对话 / 设置开关 / 统计图表，复制即用
+- 🔀 **分支布局**：一个页面分出多条路线时自动绘制折线 + 箭头 + 标注
+- 📌 **标注系统**：点击页面落图钉、写想法，可导出标注文本（数据存 localStorage）
+- 🖼 **整页截图**：用 html2canvas 导出 2× 高清 PNG，横向溢出视口的页面也会完整拍下
+- ✏️ **可编辑标题**：大标题 / 副标题点击即改，失焦保存
+- 📄 **单文件 HTML**：不需要构建、不需要服务器，浏览器直接打开
+
+## 适合 / 不适合
+
+**✅ 合适**：产品早期构思 / 需求评审 / 交互流程梳理 / 给设计或开发对齐页面跳转 / 快速演示一个 App 的页面骨架
+
+**❌ 不合适**：高保真视觉稿（本 skill 是黑白灰线框，不上色、不做品牌视觉）/ 桌面端或网页端布局（尺寸锁定为 iPhone 375×812）/ 可点击的真实交互 demo（产出是静态流程图）
 
 ---
 
@@ -78,7 +133,14 @@ https://github.com/teo5777/easy-wireframe
 
 部分 Agent 若有文件系统访问权限和已知的本地 skills 目录，也能帮你完成安装；否则它也可以在当前会话里直接遵循 `SKILL.md` 工作。
 
----
+## 平台支持
+
+| 平台 | 状态 | 说明 |
+|---|---|---|
+| Claude Code | 支持 | 原生 Skill 工作流，按需渐进加载支持文件 |
+| Codex | 支持 | 相同 `SKILL.md` 约定，放入 `.codex/skills/` 即可 |
+| Cursor / 其他本地 Agent | 可用 | 需要能读写文件、并能从 `SKILL.md` 入手 |
+| 普通 Chatbot | 不推荐 | 没有文件系统和浏览器预览时，难以稳定产出完整流程图 |
 
 ## 使用方式
 
