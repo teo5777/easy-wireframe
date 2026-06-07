@@ -3,6 +3,9 @@
 .AppleDouble
 .LSOverride
 
+# 本地开发指引（仅服务本地 Claude Code，不进仓库）
+CLAUDE.md
+
 # Editor / IDE
 .vscode/
 .idea/
