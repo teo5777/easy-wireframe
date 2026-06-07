@@ -40,7 +40,7 @@ cp SKILL.md design-system.md components.md template.html example.html ~/.claude/
 或者直接克隆到 skills 目录：
 
 ```bash
-git clone https://github.com/<your-name>/easy-wireframe.git ~/.claude/skills/easy-wireframe
+git clone https://github.com/teo5777/easy-wireframe.git ~/.claude/skills/easy-wireframe
 ```
 
 之后在 Claude Code 里输入 `/easy-wireframe` 即可使用。独立 skill 不带命名空间前缀。
@@ -58,7 +58,7 @@ cp SKILL.md design-system.md components.md template.html example.html .codex/ski
 或克隆：
 
 ```bash
-git clone https://github.com/<your-name>/easy-wireframe.git .codex/skills/easy-wireframe
+git clone https://github.com/teo5777/easy-wireframe.git .codex/skills/easy-wireframe
 ```
 
 ### 其他编码 Agent
@@ -66,7 +66,7 @@ git clone https://github.com/<your-name>/easy-wireframe.git .codex/skills/easy-w
 Kimi Code、OpenCode、Gemini CLI 等本地编码助手可以使用同一套核心 skill。最简单的方式是把本仓库链接发给 Agent，让它使用 Easy Wireframe skill：
 
 ```
-https://github.com/<your-name>/easy-wireframe
+https://github.com/teo5777/easy-wireframe
 ```
 
 如果 Agent 能读取 GitHub 仓库或浏览文件，它应从 `SKILL.md` 入手，并只按需加载其中引用的支持文件：
