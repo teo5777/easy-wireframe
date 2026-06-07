@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# 生成的预览图 / 临时产物
+/tmp/
+*.tmp
+
+# 本地生成的原型输出（按需保留示例；如需提交可删除此行）
+prototype*.html

@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>轻记 · 习惯打卡 · 页面流程线框图</title>
+<style>
+  :root {
+    --ink: #33373d;        /* 主文字：近黑但偏柔 */
+    --line: #b7bcc2;        /* 图标/中性线条 */
+    --line-soft: #ededf0;   /* 分割线：极浅 */
+    --hairline: #e6e7ea;    /* 卡片发丝边 */
+    --fill: #f6f7f8;        /* 浅填充（图标底、输入框） */
+    --fill-2: #eef0f2;      /* 次级填充（己方气泡） */
+    --bg: #f3f4f6;          /* 页面背景：干净冷白灰 */
+    --muted: #9aa0a6;       /* 次要文字 */
+    --white: #ffffff;
+
+    /* 标注操作层专用（仅用于工具栏/图钉/弹窗这套覆盖 UI，不参与线框本身） */
+    --anno-danger: #e2553d;        /* 删除/危险态：低饱和砖红 */
+    --anno-danger-soft: #fbeae6;   /* 危险态浅底 */
+    --anno-shadow: 0 1px 2px rgba(33,37,41,0.04), 0 8px 24px rgba(33,37,41,0.08), 0 24px 48px rgba(33,37,41,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "PingFang SC", "Helvetica Neue", "Microsoft YaHei", system-ui, sans-serif;
+    background:
+      radial-gradient(circle at 50% 0%, #ffffff 0%, var(--bg) 60%);
+    background-attachment: fixed;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    padding: 0;
+  }
+
+  /* 画布容器：宽度由内容决定，把标题与流程一起居中；
+     边距放在这里，横向滚动时左右留白都会被计入滚动宽度，不再塌陷 */
+  .canvas {
+    width: max-content;
+    margin: 0 auto;
+    padding: 40px 48px 90px;
+  }
+
+  .page-header {
+    margin: 0 0 56px;
+    text-align: center;
+  }
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .page-header p {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.3px;
+  }
+  /* 可编辑标题：保持上下块级结构；高亮背景仅包裹文字（fit-content + 居中） */
+  .page-header [contenteditable] {
+    display: block;
+    width: fit-content;
+    max-width: 100%;
+    margin-left: auto; margin-right: auto;
+    border-radius: 6px;
+    padding: 2px 8px;
+    cursor: text;
+    transition: background .15s, box-shadow .15s;
+    outline: none;
+  }
+  /* 副标题与标题间距保留（h1 自带 margin-top:14px 在 p 上） */
+  .page-header [contenteditable]:hover { background: rgba(0,0,0,0.035); }
+  .page-header [contenteditable]:focus {
+    background: var(--white);
+    box-shadow: 0 0 0 1.5px var(--ink);
+  }
+  /* 内容为空时显示占位提示，避免编辑框塌缩成看不见 */
+  .page-header [contenteditable]:empty::before {
+    content: attr(data-placeholder);
+    color: var(--line);
+  }
+
+  /* 横向流程：页面卡片 + 箭头
+     —— 固定横排、绝不换行；窗口装不下时整页横向滚动，保证布局始终正确 */
+  .flow {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .stage-label {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1.5px;
+    font-weight: 500;
+  }
+
+  /* 流程箭头 */
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    min-width: 118px;
+    padding-top: 400px;   /* 让箭头大致对齐到页面纵向中部（页面高 812） */
+  }
+  /* 用原生 SVG 一体绘制：直线 + 箭头，不再拼接，绝不错位 */
+  .arrow .line { color: var(--line); display: block; line-height: 0; }
+  .arrow .line svg { display: block; width: 104px; height: 12px; }
+  .arrow .tag {
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  /* ===== 分支流程（同一来源分出多条路线，支持任意行数 / 任意位置分叉 / 嵌套）=====
+     结构：
+       <div class="flow branched">
+         …可选前置 .stage/.arrow…           （分叉点也可在中间某页之后）
+         <div class="stage origin">…</div>   （分叉来源页：连线从它右侧中点发出）
+         <div class="fork"></div>            （占位列，预留连线空间；连线由 JS 画进 SVG overlay）
+         <div class="branches">
+           <div class="branch" data-tag="点击「X」">…一行子流程…</div>
+           <div class="branch" data-tag="点击「Y」">… N 行皆可 …</div>
+         </div>
+       </div>
+     连线（折线 + 标准箭头 + tag）全部由 JS(drawForks) 按真实 DOM 坐标绘制，
+     因此与行数、各行高度、分叉位置无关，且天然支持 .branch 内再嵌套 .fork。 */
+  .flow.branched { align-items: center; position: relative; }
+  .flow.branched > .stage.origin { align-self: center; }
+
+  /* .fork 仅作占位列，撑出连线所需的水平空间；实际线条画在 .fork-overlay 里 */
+  .fork {
+    align-self: stretch;
+    width: 150px;
+    flex-shrink: 0;
+  }
+
+  /* 覆盖整个 .branched 区域的 SVG 画布，承载所有分叉连线（不拦截鼠标） */
+  .fork-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 1;
+  }
+  .fork-overlay path { stroke: var(--line); stroke-width: 1; fill: none; }
+  /* 分叉线上的入口标注（JS 定位到每行入口箭头上方，样式同普通 .arrow .tag） */
+  .fork-tag {
+    position: absolute;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    text-align: left;
+    color: var(--muted);
+    transform: translateY(-100%);   /* 上移到线上方；水平方向左对齐到 left（线的左端） */
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .branches {
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+    flex-shrink: 0;
+  }
+  .branch {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  /* ===== 简洁页面卡片（无手机壳 / 无状态栏） ===== */
+  /* 采用 iOS 标准逻辑宽度 375pt，比例对齐 iPhone（375×812）。
+     高度用 min-height：内容少时维持标准 812 高，内容多时整页向下延长、完整展示（原型无需半遮挡滚动） */
+  .screen {
+    width: 375px;
+    min-height: 812px;
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    border-radius: 30px;
+    overflow: hidden;        /* 仅护住圆角；高度由 min-height 决定，内容多时整体长高、不裁切 */
+    display: flex;
+    flex-direction: column;
+    box-shadow:
+      0 1px 2px rgba(33, 37, 41, 0.04),
+      0 8px 24px rgba(33, 37, 41, 0.06),
+      0 24px 48px rgba(33, 37, 41, 0.05);
+  }
+
+  /* 顶部导航：标题 Headline 17pt */
+  .navbar {
+    height: 56px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--line-soft);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+  .navbar .nav-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+    background: transparent;
+  }
+  .navbar .nav-btn.ghost { border: none; background: none; }
+  .navbar .title { flex: 1; text-align: center; }
+
+  .body { flex: 1; }
+
+  /* ===== 通用 list 项 ===== */
+  .list-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .list-item:last-child { border-bottom: none; }
+  .list-item .ic {
+    width: 44px; height: 44px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: var(--fill);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .list-item .txt { flex: 1; min-width: 0; }
+  .list-item .txt .t1 { font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: 0.2px; line-height: 1.3; }
+  .list-item .txt .t2 { font-size: 15px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+  .list-item .chev { color: var(--line); display: flex; flex-shrink: 0; }
+
+  .section-cap {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 22px 20px 10px;
+  }
+
+  /* ===== 对话页 ===== */
+  .chat-hero {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 28px 0 24px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--white);
+  }
+  .chat-hero .avatar {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: var(--fill);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .chat-hero .name { font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
+  .chat-hero .sub { font-size: 13px; color: var(--muted); }
+
+  /* 位置权限提示条 */
+  .perm-tip {
+    flex-shrink: 0;
+    margin: 16px 16px 4px;
+    border-radius: 14px;
+    background: var(--fill);
+    padding: 13px 15px;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+  }
+  .perm-tip .pic {
+    width: 36px; height: 36px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--white);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .perm-tip .ptxt { flex: 1; min-width: 0; }
+  .perm-tip .ptxt .pt1 { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .perm-tip .ptxt .pt2 { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+  .perm-tip .pbtn {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: var(--white);
+    background: var(--ink);
+    border-radius: 16px;
+    padding: 7px 15px;
+  }
+
+  .chat-stream {
+    flex: 1;
+    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .bubble {
+    max-width: 78%;
+    font-size: 17px;
+    line-height: 1.45;
+    padding: 11px 15px;
+    border-radius: 20px;
+  }
+  .bubble.in {
+    align-self: flex-start;
+    background: var(--fill);
+    color: var(--ink);
+    border-bottom-left-radius: 5px;
+  }
+  .bubble.out {
+    align-self: flex-end;
+    background: var(--ink);
+    color: var(--white);
+    border-bottom-right-radius: 5px;
+  }
+  .bubble.out .who { color: rgba(255,255,255,0.55); }
+  .bubble .who {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .chat-input {
+    flex-shrink: 0;
+    height: 60px;
+    border-top: 1px solid var(--line-soft);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 14px;
+  }
+  .chat-input .field {
+    flex: 1;
+    height: 40px;
+    border-radius: 20px;
+    background: var(--fill);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 15px;
+    color: var(--muted);
+  }
+  .chat-input .send {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .chat-input .send [data-lucide] { color: var(--white); }
+
+  /* ===== 设置项（开关 / 危险项，仅静态展示） ===== */
+  .switch {
+    width: 51px; height: 31px;
+    border-radius: 16px;
+    background: var(--line-soft);
+    position: relative;
+    flex-shrink: 0;
+    transition: background .2s;
+  }
+  .switch .knob {
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 27px; height: 27px;
+    border-radius: 50%;
+    background: var(--white);
+    box-shadow: 0 1px 3px rgba(33,37,41,0.2);
+    transition: left .2s;
+  }
+  .switch.on { background: var(--ink); }
+  .switch.on .knob { left: 22px; }
+
+  /* ===== 统计页 ===== */
+  .stat-scroll { flex: 1; }
+
+  /* 顶部数字摘要 */
+  .stat-summary {
+    display: flex;
+    padding: 24px 12px 20px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .stat-summary .stat {
+    flex: 1;
+    text-align: center;
+    position: relative;
+  }
+  .stat-summary .stat + .stat::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 1px; height: 30px;
+    background: var(--line-soft);
+  }
+  .stat-summary .stat .num {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.5px;
+    line-height: 1;
+  }
+  .stat-summary .stat .num small {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-left: 2px;
+  }
+  .stat-summary .stat .lbl {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 7px;
+    letter-spacing: 0.3px;
+  }
+
+  /* 探索进度 */
+  .stat-progress { padding: 20px 20px 6px; }
+  .stat-progress .pg-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 11px;
+  }
+  .stat-progress .pg-head .pg-title { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .stat-progress .pg-head .pg-meta { font-size: 13px; color: var(--muted); }
+  .stat-progress .pg-track {
+    height: 10px;
+    border-radius: 5px;
+    background: var(--fill);
+    overflow: hidden;
+  }
+  .stat-progress .pg-fill {
+    height: 100%;
+    border-radius: 5px;
+    background: var(--ink);
+  }
+
+  /* 柱状图 */
+  .chart-block { padding: 22px 20px 18px; }
+  .chart-block .ch-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 18px;
+  }
+  .bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    height: 200px;
+  }
+  .bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+  }
+  .bar-col .bar-track {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 7px;
+  }
+  .bar-col .bar-cap { font-size: 12px; font-weight: 600; color: var(--ink); }
+  .bar-col .bar {
+    width: 70%;
+    max-width: 30px;
+    border-radius: 7px 7px 0 0;
+    background: var(--fill-2);
+  }
+  .bar-col.hot .bar { background: var(--ink); }
+  .bar-col .bar-lbl {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 9px;
+    letter-spacing: 0.2px;
+  }
+
+  /* 流程内的列（页面 / 箭头）一律不压缩，保持原尺寸横向排开 */
+  .stage, .arrow { flex-shrink: 0; }
+
+  /* ===================== 标注系统（操作层 UI）=====================
+     与线框同一套设计语言：发丝边 + 柔和层叠投影 + 大圆角 + 毛玻璃，
+     按钮走极简 ghost 风格。仅美化外观，功能与脚本逻辑不变。
+     （配色与投影变量见 :root 末尾的 --anno-* 一组） */
+  .anno-toolbar {
+    position: fixed;
+    top: 18px; right: 18px;
+    z-index: 9999;
+    display: flex;
+    gap: 2px;
+    background: rgba(255,255,255,0.82);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    backdrop-filter: saturate(180%) blur(16px);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: var(--anno-shadow);
+    font-size: 12px;
+    align-items: center;
+  }
+  .anno-toolbar button {
+    font: inherit;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    border-radius: 9px;
+    padding: 7px 12px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .anno-toolbar button:hover { background: var(--fill); }
+  .anno-toolbar button:active { background: var(--fill-2); }
+  /* 标注模式开关：主按钮，开启时实心墨色 */
+  .anno-toolbar button.primary.active {
+    background: var(--ink);
+    color: var(--white);
+    box-shadow: 0 1px 3px rgba(33,37,41,0.18);
+  }
+  .anno-toolbar button.primary.active:hover { background: #2a2e33; }
+  /* 清空：危险操作，hover 显红 */
+  .anno-toolbar button.danger:hover { background: var(--anno-danger-soft); color: var(--anno-danger); }
+  /* 计数：与按钮之间用发丝竖线分隔 */
+  .anno-toolbar .count {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 0 10px 0 8px;
+    margin-right: 2px;
+    border-right: 1px solid var(--hairline);
+    white-space: nowrap;
+  }
+
+  /* 进入标注模式时，给可点击区域加十字光标 */
+  body.anno-on .screen { cursor: crosshair; }
+
+  /* 图钉 */
+  .anno-pin {
+    position: absolute;
+    width: 24px; height: 24px;
+    transform: translate(-50%, -50%);
+    background: var(--ink);
+    color: var(--white);
+    border: 2px solid var(--white);
+    border-radius: 50% 50% 50% 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 50;
+    box-shadow: 0 2px 6px rgba(33,37,41,0.28), 0 1px 2px rgba(33,37,41,0.2);
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .anno-pin:hover {
+    transform: translate(-50%, -50%) scale(1.12);
+    box-shadow: 0 4px 12px rgba(33,37,41,0.34), 0 1px 3px rgba(33,37,41,0.24);
+  }
+
+  /* 注释气泡：挂在 body 上、绝对定位（用文档坐标），不再被页面卡片的 overflow 裁切 */
+  .anno-pop {
+    position: absolute;
+    width: 232px;
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    padding: 13px;
+    z-index: 9998;           /* 高于图钉(50)与页面，仅低于导出弹层(10000) */
+    box-shadow: var(--anno-shadow);
+    animation: annoPopIn .14s ease-out;
+  }
+  @keyframes annoPopIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .anno-pop .meta {
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    line-height: 1.4;
+    letter-spacing: 0.2px;
+  }
+  .anno-pop textarea {
+    width: 100%;
+    height: 66px;
+    resize: none;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ink);
+    background: var(--fill);
+    border: 1px solid transparent;
+    border-radius: 9px;
+    padding: 9px 10px;
+    outline: none;
+    transition: background .15s, box-shadow .15s, border-color .15s;
+  }
+  .anno-pop textarea::placeholder { color: var(--line); }
+  .anno-pop textarea:focus {
+    background: var(--white);
+    border-color: var(--hairline);
+    box-shadow: 0 0 0 3px rgba(51,55,61,0.08);
+  }
+  .anno-pop .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+  .anno-pop .row button {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    background: var(--fill);
+    color: var(--ink);
+    border-radius: 9px;
+    padding: 7px 16px;
+    cursor: pointer;
+    transition: background .15s, box-shadow .15s, color .15s;
+  }
+  .anno-pop .row button.save {
+    background: var(--ink);
+    color: var(--white);
+    box-shadow: 0 1px 3px rgba(33,37,41,0.18);
+  }
+  .anno-pop .row button.save:hover { background: #2a2e33; }
+  /* 删除：克制的红色文字按钮，带图标，hover 才铺浅底 */
+  .anno-pop .row button.del {
+    background: transparent;
+    color: var(--anno-danger);
+    padding: 7px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .anno-pop .row button.del:hover { background: var(--anno-danger-soft); }
+  .anno-pop .row button.del [data-lucide] { width: 14px; height: 14px; color: var(--anno-danger); }
+
+  /* 导出弹层 */
+  .anno-modal-mask {
+    position: fixed; inset: 0;
+    background: rgba(33,37,41,0.28);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .anno-modal-mask.show { display: flex; animation: annoMaskIn .18s ease-out; }
+  @keyframes annoMaskIn { from { opacity: 0; } to { opacity: 1; } }
+  .anno-modal {
+    width: 520px;
+    max-width: 90vw;
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    border-radius: 18px;
+    padding: 22px;
+    box-shadow: 0 12px 32px rgba(33,37,41,0.18), 0 32px 64px rgba(33,37,41,0.12);
+    animation: annoModalIn .2s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes annoModalIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .anno-modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 5px; letter-spacing: 0.2px; }
+  .anno-modal p { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+  .anno-modal textarea {
+    width: 100%;
+    height: 220px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--ink);
+    background: var(--fill);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 12px 14px;
+    resize: vertical;
+    outline: none;
+    transition: box-shadow .15s, background .15s;
+  }
+  .anno-modal textarea:focus { background: var(--white); box-shadow: 0 0 0 3px rgba(51,55,61,0.08); }
+  .anno-modal .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .anno-modal .actions button {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid transparent;
+    background: var(--fill);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 9px 18px;
+    cursor: pointer;
+    transition: background .15s, box-shadow .15s;
+  }
+  .anno-modal .actions button:hover { background: var(--fill-2); }
+  .anno-modal .actions button.primary {
+    background: var(--ink);
+    color: var(--white);
+    box-shadow: 0 1px 3px rgba(33,37,41,0.18);
+  }
+  .anno-modal .actions button.primary:hover { background: #2a2e33; }
+
+  /* ===================== Lucide 图标统一尺寸/描边 ===================== */
+  [data-lucide] { stroke-width: 1.75; color: var(--ink); display: inline-block; vertical-align: middle; }
+  .list-item .ic [data-lucide] { width: 24px; height: 24px; }
+  .navbar .nav-btn [data-lucide] { width: 20px; height: 20px; }
+  .list-item .chev [data-lucide] { width: 20px; height: 20px; color: var(--line); }
+  .chat-hero .avatar [data-lucide] { width: 36px; height: 36px; }
+  .perm-tip .pic [data-lucide] { width: 18px; height: 18px; }
+  .chat-input .send [data-lucide] { width: 18px; height: 18px; }
+</style>
+</head>
+<body>
+
+  <div class="canvas">
+
+  <div class="page-header">
+    <h1 id="docTitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑标题…" title="点击编辑标题">轻记 · 习惯打卡 · 页面流程线框图</h1>
+    <p id="docSubtitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑副标题…" title="点击编辑副标题">从首页分两条路线：查看习惯（习惯详情→数据统计） / 新建习惯</p>
+  </div>
+
+  <!-- 本文件是「黄金样例」：演示列表页 / 详情页 / 统计图表页 / 分支布局 / 普通箭头。
+       生成新原型时对照此文件的写法即可。 -->
+  <div class="flow branched">
+
+    <!-- ========== ① 首页（习惯列表 · 分叉来源） ========== -->
+    <div class="stage origin">
+      <div class="stage-label">① 首页</div>
+      <div class="screen">
+        <div class="navbar">
+          <span class="nav-btn ghost"></span>
+          <span class="title">我的习惯</span>
+          <span class="nav-btn"><i data-lucide="plus"></i></span>
+        </div>
+        <div class="body">
+          <div class="section-cap">今日打卡</div>
+          <div class="list-item">
+            <div class="ic"><i data-lucide="footprints"></i></div>
+            <div class="txt">
+              <div class="t1">晨跑</div>
+              <div class="t2">已连续 12 天 · 今日待打卡</div>
+            </div>
+            <div class="chev"><i data-lucide="chevron-right"></i></div>
+          </div>
+          <div class="list-item">
+            <div class="ic"><i data-lucide="book-open"></i></div>
+            <div class="txt">
+              <div class="t1">阅读 30 分钟</div>
+              <div class="t2">已连续 5 天 · 已完成</div>
+            </div>
+            <div class="chev"><i data-lucide="chevron-right"></i></div>
+          </div>
+          <div class="list-item">
+            <div class="ic"><i data-lucide="glass-water"></i></div>
+            <div class="txt">
+              <div class="t1">喝水 8 杯</div>
+              <div class="t2">6 / 8 杯</div>
+            </div>
+            <div class="chev"><i data-lucide="chevron-right"></i></div>
+          </div>
+
+          <div class="section-cap">操作</div>
+          <div class="list-item">
+            <div class="ic"><i data-lucide="plus-circle"></i></div>
+            <div class="txt">
+              <div class="t1">新建习惯</div>
+              <div class="t2">添加一个想坚持的事</div>
+            </div>
+            <div class="chev"><i data-lucide="chevron-right"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fork"></div>
+
+    <div class="branches">
+
+      <!-- 主线 · 查看习惯：详情 → 统计 -->
+      <div class="branch" data-tag="点击「晨跑」">
+
+        <!-- ② 习惯详情 -->
+        <div class="stage">
+          <div class="stage-label">② 习惯详情</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">晨跑</span>
+              <span class="nav-btn"><i data-lucide="settings"></i></span>
+            </div>
+            <div class="body">
+              <div class="perm-tip">
+                <div class="pic"><i data-lucide="footprints"></i></div>
+                <div class="ptxt">
+                  <div class="pt1">晨跑 · 已连续 12 天</div>
+                  <div class="pt2">每天 07:00 · 目标 30 分钟</div>
+                </div>
+                <div class="pbtn">打卡</div>
+              </div>
+
+              <div class="section-cap">本周</div>
+              <div class="list-item">
+                <div class="ic"><i data-lucide="check-circle-2"></i></div>
+                <div class="txt">
+                  <div class="t1">已打卡 5 / 7 天</div>
+                  <div class="t2">周一至周五完成</div>
+                </div>
+                <div class="chev"><i data-lucide="chevron-right"></i></div>
+              </div>
+
+              <div class="section-cap">更多</div>
+              <div class="list-item">
+                <div class="ic"><i data-lucide="bar-chart-3"></i></div>
+                <div class="txt">
+                  <div class="t1">数据统计</div>
+                  <div class="t2">查看坚持趋势</div>
+                </div>
+                <div class="chev"><i data-lucide="chevron-right"></i></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">
+          <div class="tag">点击「数据统计」</div>
+          <div class="line">
+            <svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- ③ 数据统计（图表页） -->
+        <div class="stage">
+          <div class="stage-label">③ 数据统计</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">晨跑 · 统计</span>
+              <span class="nav-btn ghost"></span>
+            </div>
+            <div class="stat-scroll">
+              <div class="stat-summary">
+                <div class="stat">
+                  <div class="num">12</div>
+                  <div class="lbl">连续天数</div>
+                </div>
+                <div class="stat">
+                  <div class="num">86<small>%</small></div>
+                  <div class="lbl">完成率</div>
+                </div>
+                <div class="stat">
+                  <div class="num">38</div>
+                  <div class="lbl">累计打卡</div>
+                </div>
+              </div>
+
+              <div class="stat-progress">
+                <div class="pg-head">
+                  <span class="pg-title">本月目标</span>
+                  <span class="pg-meta">26 / 30 天</span>
+                </div>
+                <div class="pg-track"><div class="pg-fill" style="width:86%"></div></div>
+              </div>
+
+              <div class="chart-block">
+                <div class="ch-title">最近 5 周打卡天数</div>
+                <div class="bars">
+                  <div class="bar-col">
+                    <div class="bar-track"><span class="bar-cap">4</span><div class="bar" style="height:57%"></div></div>
+                    <div class="bar-lbl">W1</div>
+                  </div>
+                  <div class="bar-col">
+                    <div class="bar-track"><span class="bar-cap">5</span><div class="bar" style="height:71%"></div></div>
+                    <div class="bar-lbl">W2</div>
+                  </div>
+                  <div class="bar-col">
+                    <div class="bar-track"><span class="bar-cap">6</span><div class="bar" style="height:86%"></div></div>
+                    <div class="bar-lbl">W3</div>
+                  </div>
+                  <div class="bar-col hot">
+                    <div class="bar-track"><span class="bar-cap">7</span><div class="bar" style="height:100%"></div></div>
+                    <div class="bar-lbl">W4</div>
+                  </div>
+                  <div class="bar-col">
+                    <div class="bar-track"><span class="bar-cap">5</span><div class="bar" style="height:71%"></div></div>
+                    <div class="bar-lbl">W5</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 次线 · 新建习惯 -->
+      <div class="branch" data-tag="点击「新建习惯」">
+        <div class="stage">
+          <div class="stage-label">④ 新建习惯</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">新建习惯</span>
+              <span class="nav-btn"><i data-lucide="check"></i></span>
+            </div>
+            <div class="body">
+              <div class="section-cap">选择类型</div>
+              <div class="list-item">
+                <div class="ic"><i data-lucide="footprints"></i></div>
+                <div class="txt">
+                  <div class="t1">运动</div>
+                  <div class="t2">晨跑 · 健身 · 步行</div>
+                </div>
+                <div class="chev"><i data-lucide="chevron-right"></i></div>
+              </div>
+              <div class="list-item">
+                <div class="ic"><i data-lucide="book-open"></i></div>
+                <div class="txt">
+                  <div class="t1">学习</div>
+                  <div class="t2">阅读 · 背单词 · 练习</div>
+                </div>
+                <div class="chev"><i data-lucide="chevron-right"></i></div>
+              </div>
+
+              <div class="section-cap">提醒频率</div>
+              <div class="list-item">
+                <div class="ic"><i data-lucide="bell"></i></div>
+                <div class="txt">
+                  <div class="t1">每日提醒</div>
+                  <div class="t2">07:00</div>
+                </div>
+                <div class="switch on"><div class="knob"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  </div><!-- /.canvas -->
+
+  <!-- ===================== 标注系统 UI ===================== -->
+  <div class="anno-toolbar">
+    <button id="annoToggle" class="primary">✎ 标注模式：关</button>
+    <span class="count"><span id="annoCount">0</span> 条</span>
+    <button id="annoExport">导出标注</button>
+    <button id="annoShot">下载截图</button>
+    <button id="annoClear" class="danger">清空</button>
+  </div>
+
+  <div class="anno-modal-mask" id="annoMask">
+    <div class="anno-modal">
+      <h3>导出标注</h3>
+      <p>已自动复制到剪贴板。把下面内容粘贴到对话框发给我即可。</p>
+      <textarea id="annoOut" readonly></textarea>
+      <div class="actions">
+        <button id="annoCopy">再次复制</button>
+        <button class="primary" id="annoClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  // 每个原型文件用独立的存储命名空间，避免不同页面之间串数据（标注 / 标题缓存）
+  const NS = 'prototype:' + (location.pathname.split('/').pop() || 'index');
+  const KEY = NS + ':annotations';
+  let annoMode = false;
+  let pins = load();
+
+  const body = document.body;
+  const toggleBtn = document.getElementById('annoToggle');
+  const countEl = document.getElementById('annoCount');
+
+  // ---------- 持久化 ----------
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; }
+    catch (e) { return []; }
+  }
+  function save() {
+    localStorage.setItem(KEY, JSON.stringify(pins));
+    countEl.textContent = pins.length;
+  }
+
+  // ---------- 识别点击位置所属的页面 & 锚点 ----------
+  function describeTarget(el, screen) {
+    // 页面名：取该 .screen 所在 .stage 的标签
+    const stage = screen.closest('.stage');
+    const pageName = stage ? stage.querySelector('.stage-label').textContent.trim() : '页面';
+
+    // 锚点：向上找最近的有意义元素，取其主标题/文本
+    let anchor = '';
+    const item = el.closest('.list-item');
+    const bubble = el.closest('.bubble');
+    const hero = el.closest('.chat-hero');
+    const nav = el.closest('.navbar');
+    const input = el.closest('.chat-input');
+
+    if (item) {
+      const t = item.querySelector('.t1');
+      anchor = t ? t.textContent.trim() : '列表项';
+    } else if (bubble) {
+      anchor = '对话气泡:' + bubble.textContent.replace(/\s+/g, ' ').trim().slice(0, 14) + '…';
+    } else if (hero) {
+      anchor = '头部头像区';
+    } else if (nav) {
+      const title = nav.querySelector('.title');
+      anchor = '导航栏' + (el.classList.contains('nav-btn') ? '按钮' : (title ? '·' + title.textContent.trim() : ''));
+    } else if (input) {
+      anchor = '输入栏';
+    } else if (el.classList.contains('section-cap')) {
+      anchor = '分组标题:' + el.textContent.trim();
+    } else {
+      anchor = '页面空白处';
+    }
+    return { pageName, anchor };
+  }
+
+  // ---------- 渲染所有图钉 ----------
+  function renderAll() {
+    document.querySelectorAll('.anno-pin, .anno-pop').forEach(n => n.remove());
+    pins.forEach((p, i) => {
+      const screen = document.querySelectorAll('.screen')[p.screenIndex];
+      if (!screen) return;
+      // 确保 screen 是定位上下文
+      if (getComputedStyle(screen).position === 'static') screen.style.position = 'relative';
+      const pin = document.createElement('div');
+      pin.className = 'anno-pin';
+      pin.dataset.index = i;
+      pin.textContent = i + 1;
+      pin.style.left = p.xPct + '%';
+      pin.style.top = p.yPct + '%';
+      pin.title = p.anchor;
+      pin.addEventListener('click', (e) => { e.stopPropagation(); openPop(pin, i); });
+      screen.appendChild(pin);
+    });
+  }
+
+  // 提交当前打开的气泡：写回内容；若内容为空则连同图钉一起删除（空标注不保留）
+  // 返回 true 表示确实有气泡被处理
+  function commitOpenPop() {
+    const pop = document.querySelector('.anno-pop');
+    if (!pop) return false;
+    const idx = +pop.dataset.index;
+    const ta = pop.querySelector('textarea');
+    const val = ta ? ta.value.trim() : '';
+    pop.remove();
+    if (pins[idx] !== undefined) {
+      if (val === '') {
+        // 空内容 —— 移除这条标注
+        pins.splice(idx, 1);
+        save();
+        renderAll();
+      } else {
+        pins[idx].note = val;
+        save();
+      }
+    }
+    return true;
+  }
+
+  // 把弹窗定位到图钉附近（文档坐标）；超出视口右/下边缘时翻转，保证完整可见
+  function positionPop(pop, pin) {
+    const pr = pin.getBoundingClientRect();
+    const sx = window.scrollX, sy = window.scrollY;
+    const pw = pop.offsetWidth, ph = pop.offsetHeight;
+    const gap = 10;
+    // 默认放在图钉下方、水平居中对齐图钉中心
+    let left = pr.left + sx + pr.width / 2 - pw / 2;
+    let top = pr.bottom + sy + gap;
+    // 右/左溢出修正
+    const maxLeft = sx + document.documentElement.clientWidth - pw - 8;
+    if (left > maxLeft) left = maxLeft;
+    if (left < sx + 8) left = sx + 8;
+    // 下方放不下则翻到上方
+    if (pr.bottom + gap + ph > document.documentElement.clientHeight) {
+      top = pr.top + sy - ph - gap;
+    }
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  }
+
+  // ---------- 打开注释气泡 ----------
+  function openPop(pin, index) {
+    document.querySelectorAll('.anno-pop').forEach(n => n.remove());
+    const p = pins[index];
+    const pop = document.createElement('div');
+    pop.className = 'anno-pop';
+    pop.dataset.index = index;
+    pop.innerHTML =
+      '<div class="meta">#' + (index + 1) + ' · ' + p.pageName + ' / ' + p.anchor + '</div>' +
+      '<textarea placeholder="写下你的修改 / 新增想法…（留空将自动删除此标注）"></textarea>' +
+      '<div class="row"><button class="del"><i data-lucide="trash-2"></i>删除</button><button class="save">保存</button></div>';
+    // 挂到 body，脱离页面卡片的 overflow 裁切
+    document.body.appendChild(pop);
+    positionPop(pop, pin);
+    if (window.lucide) lucide.createIcons({ nodes: [pop.querySelector('[data-lucide]')] });
+    const ta = pop.querySelector('textarea');
+    ta.value = p.note || '';
+    ta.focus();
+    pop.addEventListener('click', e => e.stopPropagation());
+    pop.querySelector('.save').addEventListener('click', (e) => {
+      e.stopPropagation();
+      commitOpenPop();
+    });
+    pop.querySelector('.del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      pop.remove();
+      pins.splice(index, 1);
+      save();
+      renderAll();
+    });
+  }
+
+  // ---------- 点击页面新增图钉 ----------
+  function onScreenClick(e) {
+    if (!annoMode) return;
+
+    // 点在已有图钉或正在编辑的气泡内 —— 交给它们自己处理，不新增
+    if (e.target.closest('.anno-pin') || e.target.closest('.anno-pop')) return;
+
+    // 若当前有气泡正在编辑：这次点击只用于“保存并收起”，不新增图钉
+    if (commitOpenPop()) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    const screen = e.target.closest('.screen');
+    if (!screen) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const screens = Array.from(document.querySelectorAll('.screen'));
+    const rect = screen.getBoundingClientRect();
+    const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+    const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+    const { pageName, anchor } = describeTarget(e.target, screen);
+
+    pins.push({
+      screenIndex: screens.indexOf(screen),
+      pageName, anchor,
+      xPct: +xPct.toFixed(2),
+      yPct: +yPct.toFixed(2),
+      note: ''
+    });
+    save();
+    renderAll();
+    // 自动打开刚新增那一条的输入框（按 data-index 精确定位，不靠 DOM 顺序）
+    const newIdx = pins.length - 1;
+    const newPin = document.querySelector('.anno-pin[data-index="' + newIdx + '"]');
+    if (newPin) openPop(newPin, newIdx);
+  }
+
+  // ---------- 工具栏 ----------
+  toggleBtn.addEventListener('click', () => {
+    annoMode = !annoMode;
+    body.classList.toggle('anno-on', annoMode);
+    toggleBtn.classList.toggle('active', annoMode);
+    toggleBtn.textContent = annoMode ? '✎ 标注模式：开' : '✎ 标注模式：关';
+  });
+
+  document.addEventListener('click', onScreenClick, true);
+
+  // ---------- 导出 ----------
+  const mask = document.getElementById('annoMask');
+  const out = document.getElementById('annoOut');
+
+  function buildExport() {
+    if (!pins.length) return '（暂无标注）';
+    const fileName = location.pathname.split('/').pop() || '原型文件';
+    let s = '我在原型页面上做了如下标注，请据此更新 ' + fileName + '：\n\n';
+    pins.forEach((p, i) => {
+      s += '[#' + (i + 1) + '] 页面：' + p.pageName +
+           ' | 锚点：' + p.anchor +
+           ' | 位置：' + p.xPct + '%,' + p.yPct + '%\n' +
+           '     想法：' + (p.note || '（未填写）') + '\n';
+    });
+    return s;
+  }
+
+  document.getElementById('annoExport').addEventListener('click', () => {
+    const text = buildExport();
+    out.value = text;
+    mask.classList.add('show');
+    if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+  });
+  document.getElementById('annoCopy').addEventListener('click', () => {
+    out.select();
+    if (navigator.clipboard) navigator.clipboard.writeText(out.value).catch(() => {});
+    else document.execCommand('copy');
+  });
+  document.getElementById('annoClose').addEventListener('click', () => mask.classList.remove('show'));
+  mask.addEventListener('click', (e) => { if (e.target === mask) mask.classList.remove('show'); });
+
+  document.getElementById('annoClear').addEventListener('click', () => {
+    if (confirm('清空所有标注？')) { pins = []; save(); renderAll(); }
+  });
+
+  // ---------- 下载整页截图 ----------
+  // 截图目标是 .canvas（它的尺寸 = 全部页面的真实宽高），而非 document.body
+  // （body 宽度受视口限制，横向溢出的页面会被裁掉，导致只下载到一部分）
+  const shotBtn = document.getElementById('annoShot');
+  shotBtn.addEventListener('click', async () => {
+    if (!window.html2canvas) { alert('截图库尚未加载完成，请稍候重试'); return; }
+    const toolbar = document.querySelector('.anno-toolbar');
+    const target = document.querySelector('.canvas') || document.body;
+    const prevText = shotBtn.textContent;
+    shotBtn.textContent = '生成中…';
+    shotBtn.disabled = true;
+    toolbar.style.visibility = 'hidden';   // 不要把工具栏拍进去
+    // 记录并临时清除滚动，避免 html2canvas 因滚动偏移裁切内容
+    const sx = window.scrollX, sy = window.scrollY;
+    window.scrollTo(0, 0);
+    // 背景还原：页面背景的径向渐变定义在 body 上，而截图目标是 .canvas（自身无背景），
+    // 且 body 的 backgroundColor 计算值是透明（渐变属 background-image）。
+    // 截图前临时把同款渐变铺到 .canvas 上，截完恢复，保证下载图与网页观感一致。
+    const prevBg = target.style.background;
+    target.style.background = 'radial-gradient(circle at 50% 0%, #ffffff 0%, var(--bg) 60%)';
+    try {
+      // 用目标的完整尺寸（含溢出视口的部分）
+      const fullW = Math.ceil(target.scrollWidth);
+      const fullH = Math.ceil(target.scrollHeight);
+      const canvas = await html2canvas(target, {
+        backgroundColor: '#f3f4f6',        // 渐变兜底色（= --bg），html2canvas 渲染渐变失败时也不至于透明/黑
+        scale: 2,                          // 2x 高清
+        useCORS: true,
+        width: fullW,
+        height: fullH,
+        windowWidth: fullW,
+        windowHeight: fullH,
+        scrollX: 0,
+        scrollY: 0
+      });
+      const link = document.createElement('a');
+      const titleEl = document.getElementById('docTitle');
+      const fname = (titleEl ? titleEl.textContent.trim() : '原型线框图').replace(/[\\/:*?"<>|]/g, '');
+      link.download = (fname || '原型线框图') + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error(err);
+      alert('截图失败：' + err.message);
+    } finally {
+      target.style.background = prevBg;    // 恢复 .canvas 原背景
+      window.scrollTo(sx, sy);
+      toolbar.style.visibility = '';
+      shotBtn.textContent = prevText;
+      shotBtn.disabled = false;
+    }
+  });
+
+  // ---------- 可编辑标题 / 副标题（点击编辑，失焦保存，刷新恢复） ----------
+  const TITLE_KEY = NS + ':doc-title';
+  const SUB_KEY = NS + ':doc-subtitle';
+  function bindEditable(el, storeKey) {
+    if (!el) return;
+    // 恢复已保存内容（允许为空：保存过空串也照样应用）
+    const saved = localStorage.getItem(storeKey);
+    if (saved !== null) el.textContent = saved;
+    // 失焦保存（允许全空，可全部删除）
+    el.addEventListener('blur', () => {
+      localStorage.setItem(storeKey, el.textContent.trim());
+    });
+    // 回车 = 完成编辑（不换行）
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    });
+  }
+  bindEditable(document.getElementById('docTitle'), TITLE_KEY);
+  bindEditable(document.getElementById('docSubtitle'), SUB_KEY);
+
+  // ---------- 分支连接器：按真实 DOM 坐标绘制折线 + 箭头 + 标注 ----------
+  // 支持任意行数、任意位置分叉、嵌套。对每个 .flow.branched 独立绘制。
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function drawForks() {
+    document.querySelectorAll('.flow.branched').forEach(flow => {
+      const origin = flow.querySelector(':scope > .stage.origin');
+      const branches = flow.querySelector(':scope > .branches');
+      if (!origin || !branches) return;
+
+      // overlay（SVG 画线）与 tag 容器，复用或新建
+      let overlay = flow.querySelector(':scope > .fork-overlay');
+      if (!overlay) {
+        overlay = document.createElementNS(SVGNS, 'svg');
+        overlay.setAttribute('class', 'fork-overlay');
+        flow.appendChild(overlay);
+      }
+      flow.querySelectorAll(':scope > .fork-tag').forEach(n => n.remove());
+      while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
+
+      const fb = flow.getBoundingClientRect();
+      overlay.setAttribute('viewBox', `0 0 ${fb.width} ${fb.height}`);
+      overlay.setAttribute('width', fb.width);
+      overlay.setAttribute('height', fb.height);
+
+      // 起点：origin 右边缘中点（相对 flow 本地坐标）。
+      // GAP：折线头尾与页面之间的留白，对齐普通箭头两端（约 7px）的观感。
+      const GAP = 7;
+      const orb = origin.getBoundingClientRect();
+      const startX = orb.right - fb.left + GAP;   // 起点离开 origin 右缘 GAP
+      const startY = orb.top + orb.height / 2 - fb.top;
+
+      // 分叉中段 X：起点与第一行页面之间的中点
+      const rows = branches.querySelectorAll(':scope > .branch');
+      if (!rows.length) return;
+      // 各行入口页面（第一个 .screen）的左边缘中点
+      const targets = [];
+      rows.forEach(row => {
+        const screen = row.querySelector('.screen');
+        if (!screen) return;
+        const sb = screen.getBoundingClientRect();
+        targets.push({
+          x: sb.left - fb.left,
+          y: sb.top + sb.height / 2 - fb.top,
+          tag: row.getAttribute('data-tag') || ''
+        });
+      });
+      if (!targets.length) return;
+
+      const ARROW = 6;                 // 箭头头长度，与标准箭头观感一致
+      // 分叉点靠近 origin（距起点 36px），使每行的水平入口线尽量长——
+      // 标注浮在这段长横线上方就有充足空间完整显示，不与垂直主干/相邻行重叠。
+      const midX = startX + 36;
+
+      function addPath(d) {
+        const p = document.createElementNS(SVGNS, 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('stroke-linecap', 'round');
+        p.setAttribute('stroke-linejoin', 'round');
+        overlay.appendChild(p);
+      }
+
+      // 主干：起点水平到分叉点
+      addPath(`M ${startX} ${startY} H ${midX}`);
+      // 垂直贯穿：从最上行到最下行（在 midX 处）
+      const ys = targets.map(t => t.y);
+      addPath(`M ${midX} ${Math.min(...ys, startY)} V ${Math.max(...ys, startY)}`);
+      // 每行：midX 水平到该行入口前（留出箭头），再画箭头头
+      targets.forEach(t => {
+        const tipX = t.x - GAP;           // 箭头尖端距页面左缘 GAP，与普通箭头头尾留白一致
+        addPath(`M ${midX} ${t.y} H ${tipX}`);
+        addPath(`M ${tipX - ARROW} ${t.y - 4} L ${tipX} ${t.y} L ${tipX - ARROW} ${t.y + 4}`);
+        // 标注：紧贴分叉点、置于水平入口线左端上方，距线 10px（与普通箭头 tag↔line 间距一致）
+        if (t.tag) {
+          const tag = document.createElement('div');
+          tag.className = 'fork-tag';
+          tag.textContent = t.tag;
+          tag.style.left = (midX + 8) + 'px';
+          tag.style.top = (t.y - 10) + 'px';
+          flow.appendChild(tag);
+        }
+      });
+    });
+  }
+  // 布局稳定后绘制；窗口缩放、字体/图标加载后重绘
+  function scheduleDrawForks() { requestAnimationFrame(() => requestAnimationFrame(drawForks)); }
+  window.addEventListener('resize', scheduleDrawForks);
+  window.addEventListener('load', scheduleDrawForks);
+
+  // ---------- 初始化 ----------
+  save();
+  renderAll();
+  scheduleDrawForks();
+})();
+</script>
+
+<!-- 截图库 -->
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<!-- Lucide 图标库 -->
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+  // 将所有 data-lucide 占位符渲染为 SVG 图标
+  if (window.lucide) lucide.createIcons();
+  // 图标渲染后通知重绘分支连线（尺寸可能微变）
+  window.dispatchEvent(new Event('resize'));
+</script>
+
+</body>
+</html>
