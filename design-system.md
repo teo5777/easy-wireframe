@@ -138,6 +138,12 @@
 `plane` `train-front` `utensils` `building` `building-2` `landmark` `wallet` `receipt`
 `ticket` `info` `map` `bed` `plus` `plus-circle` `check-circle-2` `more-horizontal`。
 
+扩展组件常用图标（均为真实存在的 Lucide 名）：`shopping-bag` `store` `compass`
+`layout-grid` `grid-2x2` `package` `truck` `tag` `tags` `filter` `sliders-horizontal`
+`image` `images` `camera` `play` `star` `message-circle` `message-square` `share-2`
+`thumbs-up` `bookmark` `send` `gift` `percent` `flame` `eye` `sparkles` `list`
+`check` `minus` `trash-2` `chevron-down` `arrow-right` `circle-user` `users`。
+
 ⚠ **只用确实存在的 Lucide 图标名**：拼错或用了不存在的名字（如 `torii-gate`、`temple` 等）
 会渲染成**空白**，不报错，很隐蔽。拿不准时优先从上面清单里选；要用清单外的新图标，
 先到 lucide.dev 确认该 kebab-case 名称存在，再使用。
@@ -160,3 +166,86 @@
 ```
 
 `.tag` 在上、箭头在下；`padding-top:400` 让整组对齐到页面纵向中部。多页面时每两页之间插一个 `.arrow`。
+
+**三种连接关系**（详见 `components.md`）：
+- **顺序** `.arrow`：相邻两页（本节）。
+- **发散分支** `.flow.branched` + `.fork` + `.branch[data-tag]`：一页分多路，连线由 `drawForks()` 画；支持嵌套（子分支首页设为新 `origin`）。
+- **跨页/汇聚** `.xlink`：`<div class="xlink" data-from data-to data-tag data-side data-dash>`，由 `drawXlinks()` 在 `.canvas` 级 overlay 画正交折线；多条指向同一 `id` 即汇聚。线条用 `--line`，虚线 `data-dash="1"`，tag 文字垫 `--bg` 底色保证压住穿过的线可读。`.canvas` 已设 `position:relative` 作为其定位上下文。
+
+---
+
+## 六、扩展组件（新增 · 主流 App 高频形态）
+
+> 这批组件用于撑起电商 / 社交 / 内容 / 工具类 App。**全部只用第一节那 9 个颜色变量、
+> 第二节那套 HIG 字号档**——没有新色、没有新字号、没有新字体。可复制的 HTML 片段见
+> `components.md` 第 5 节。下表是它们的关键数值，便于理解与微调（同样**不要改 `<style>`**）。
+
+### A. 框架 chrome
+
+| 组件 | 类 | 关键数值 | 用色 / 字号 |
+|---|---|---|---|
+| 底部 Tab Bar | `.tabbar` / `.tab` / `.tab.active` | 内距 `8 6 10`；图标 24；标签 11px | active 用 `--ink`，未选 `--muted`；顶部 `1px --line-soft` |
+| 搜索栏 | `.searchbar` | 外距 `12 16`，高 40，圆角 12，图标 18 | 底 `--fill`，占位文字 15px `--muted` |
+| 分段控制器 | `.segment` / `.seg` / `.seg.active` | 轨道圆角 10，内距 3，段内距 `7 0` | 轨道 `--fill`；选中段白底 + `--ink` 600 |
+| 底部 CTA 栏 | `.cta-bar` | 内距 `12 16 16`，顶部发丝线 | 容器白底；按钮见下 |
+| 通用按钮 | `.btn` `.btn.primary/.ghost/.outline` `.btn.sm` | 高 48 圆角 14（sm：36/10）；17px 600 | primary 实心 `--ink`；ghost `--fill`；outline 白底 + 发丝边 |
+
+### B. 内容容器
+
+| 组件 | 类 | 关键数值 | 用色 / 字号 |
+|---|---|---|---|
+| 通用卡片 | `.card` / `.card-hd` / `.card-bd` | 外距 `12 16`，圆角 14，发丝边；头部内距 `14 16` | 标题 15px 600；「更多」13px `--muted` |
+| 功能宫格 | `.grid` / `.grid-item` | 一行 4 列（25%）；图标底 48 圆角 14 | 图标 24；标签 12px `--ink` |
+| 横滑卡片 | `.hscroll` / `.hcard` | `overflow-x:auto`；卡宽 140 | 标题 15px 600；副文 13px `--muted` |
+| Banner | `.banner` / `.dots` | 高 140，圆角 14；圆点 6，激活变 16 宽条 | 底 `--fill`，占位图标 32 `--line` |
+
+### C. 媒体 / 列表变体
+
+| 组件 | 类 | 关键数值 | 用色 / 字号 |
+|---|---|---|---|
+| 缩略图占位 | `.thumb` | 圆角 10，居中 `image` 图标 24 | 底 `--fill`，图标 `--line` |
+| 媒体列表项 | `.media-item` | 缩略图 72×72；内距 `12 20` | 主 17px 600 / 副 15px `--muted` / 元信息 12px `--line` |
+
+### D. 电商
+
+| 组件 | 类 | 关键数值 | 用色 / 字号 |
+|---|---|---|---|
+| 商品卡网格 | `.product-grid` / `.product` | 两列（`calc(50% - 6px)`）；图大 150 高；卡圆角 14 | 名 15px；价 `.price` 17px 600；加购钮 28 圆 `--ink` |
+| 详情大价格 | `.price-lg` | 28px 700 | `--ink`，货币符号 `<small>` 15px |
+
+### E. 社交 / Feed
+
+| 组件 | 类 | 关键数值 | 用色 / 字号 |
+|---|---|---|---|
+| Feed 动态卡 | `.feed-item` / `.fhead` / `.facts` | 内距 `16 20`；配图 180 高；操作行 gap 28 | 名 15px 600 / 时间 12px / 正文 15px；操作 13px `--muted` 图标 18 |
+| 评论行 | `.comment` | 内距 `12 20`，小头像 + 文案 | 名 13px 600；正文 15px |
+| 小头像 | `.avatar-sm` | 40 圆 | 底 `--fill`；可放 20 图标或首字母 15px 600 |
+
+### F. 表单 / 小部件 / 状态
+
+| 组件 | 类 | 关键数值 | 用色 / 字号 |
+|---|---|---|---|
+| 表单输入 | `.form-field` / `.finput` `.finput.ph/.area` | 输入框 min 44 圆角 10；多行 `area` min 88 | 底 `--fill`；已填 `--ink` / 占位 `.ph` `--line`；标签 13px `--muted` |
+| 筛选胶囊 | `.chips` / `.chip` / `.chip.active` | 圆角 16，内距 `7 14` | 普通 `--fill` + `--ink`；激活实心 `--ink` 白字；13px |
+| 空状态 | `.empty` | 居中；图标底 72 圆 | 图标 32 `--line`；主 17px 600 / 副 14px `--muted` |
+| 时间线 | `.timeline` / `.tl-item` `.tl-item.done` | 圆点 14；竖线 2px 贯穿 | 未达点描边 `--line`；已达 `.done` 实心 `--ink`；主 15px 600 / 副 13px |
+| 星级评分 | `.rating` | 5 星 15px；`.off` 为空心 | 实心 `--ink`（`fill`）；空心 `--line`；数值 13px `--muted` |
+
+**关于贴底组件**：`.tabbar` / `.cta-bar` 都带 `flex-shrink:0`，作为 `.screen` 的**最后一个子节点**
+自然贴底（`.screen` 是 `flex-column` + `min-height:812`，中间的 `.body`/`.stat-scroll` 用 `flex:1` 撑开）。
+一个页面里 Tab Bar 与 CTA 栏二选一，不要同时出现。
+
+### G. 地图 / 图表（线框风，纯 CSS / 内联 SVG，无图片依赖、可正常截图）
+
+| 组件 | 类 | 关键数值 | 用色 / 字号 |
+|---|---|---|---|
+| 地图 | `.map` / `.road`(`.v`) / `.pin` / `.map-card` | 高 240；网格 32px；定位针 30 圆头尖尾；信息卡浮底 | 底 `--fill`，网格 `--line-soft`，道路 `--hairline`，针 `--ink` |
+| 折线图 | `.linechart` + `svg(viewBox 0 0 300 160)` | x 10→290 均分、y 顶 30/底 130；点 r3 | 线/点描边 `--ink`，面积 `.ln-area` `--fill-2`，网格 `--line-soft`，标签 12px |
+| 圆环图 | `.donut` / `.d-seg`(`.soft`) / `.donut-legend` | 半径 50、周长≈314；环宽 14；段长=占比×314，offset=−前段累计 | 首段 `--ink`，次段 `.soft` `--line`，轨道 `--fill-2`；中心数 24px 700 |
+
+> 三种图表配齐：**柱状图** `.bars`（第二节统计页）/ **折线图** `.linechart` / **圆环图** `.donut`。
+> 折线、圆环都用内联 SVG（不用 `<use>`，html2canvas 截图正常）。坐标/段长由作者按真实数据算，
+> `components.md` 第 5.18 / 5.19 节有可直接套用的算法说明。
+
+**商品卡对齐**：`.product .pname` 用 `height:2.7em` + 两行截断**恒占两行**——单行标题也预留第二行空间，
+保证同排卡片的价格行与加购钮始终水平对齐（单/双行混排不再错位）。

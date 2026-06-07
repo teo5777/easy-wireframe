@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>轻记 · 习惯打卡 · 页面流程线框图</title>
+<title>悠集 · 生活好物 · 页面流程线框图</title>
 <style>
   :root {
     --ink: #33373d;        /* 主文字：近黑但偏柔 */
@@ -40,6 +40,7 @@
     width: max-content;
     margin: 0 auto;
     padding: 40px 48px 90px;
+    position: relative;   /* 作为跨页连线 overlay(.xlink-overlay) 的定位上下文 */
   }
 
   .page-header {
@@ -169,6 +170,37 @@
     transform: translateY(-100%);   /* 上移到线上方；水平方向左对齐到 left（线的左端） */
     pointer-events: none;
     z-index: 2;
+  }
+
+  /* ===== 跨页连线 xlink：在任意两个页面框之间画连接线（支持多条汇聚到同一页框）=====
+     用法：给目标页 .screen（或任意块）加 id；在 .canvas 内任意处放一个
+       <div class="xlink" data-from="起点id" data-to="终点id" data-tag="说明"
+            data-side="auto|right|left|top|bottom"></div>
+     连线由 JS(drawXlinks) 画进 .canvas 级别的 SVG overlay，按真实坐标走正交折线 + 箭头。
+     与分支连线(drawForks)独立，可共存。曲线走“源右/目标左”优先，自动避免穿页。 */
+  .xlink { display: none; }   /* 占位声明，本身不渲染 */
+  .xlink-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 3;               /* 高于分支 overlay(1)，浮在页面之上、低于标注图钉(50) */
+  }
+  .xlink-overlay path { stroke: var(--line); stroke-width: 1; fill: none; }
+  /* 跨页连线虚线变体：用 data-dash 触发，区分“次要/返回”类跳转 */
+  .xlink-overlay path.dashed { stroke-dasharray: 4 4; }
+  .xlink-tag {
+    position: absolute;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    color: var(--muted);
+    background: var(--bg);    /* 给文字垫一层页面底色，压住其下穿过的连线，保证可读 */
+    padding: 0 4px;
+    pointer-events: none;
+    z-index: 4;
+    transform: translate(-50%, -50%);   /* 锚到折线中点 */
   }
 
   .branches {
@@ -512,6 +544,539 @@
     letter-spacing: 0.2px;
   }
 
+  /* ============================================================
+     扩展组件库（新增——只复用上面已有的 9 个颜色变量与 HIG 字号档，
+     绝不改动任何锁定值。覆盖主流 App 的高频形态：Tab Bar / 卡片 /
+     搜索栏 / 宫格 / 横滑 / 商品卡 / Feed / 表单 / 时间线 / 空状态 等）
+     ============================================================ */
+
+  /* ===== A. 框架 chrome ===== */
+
+  /* A1. 底部 Tab Bar：贴 .screen 底部，4–5 个 .tab，.active 用墨色 */
+  .tabbar {
+    flex-shrink: 0;
+    display: flex;
+    border-top: 1px solid var(--line-soft);
+    background: var(--white);
+    padding: 8px 6px 10px;
+  }
+  .tabbar .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+  }
+  .tabbar .tab .tlabel { font-size: 11px; letter-spacing: 0.2px; }
+  .tabbar .tab [data-lucide] { width: 24px; height: 24px; color: var(--muted); }
+  .tabbar .tab.active { color: var(--ink); }
+  .tabbar .tab.active [data-lucide] { color: var(--ink); }
+
+  /* A2. 搜索栏：圆角浅底 + 左侧放大镜 + 占位文字 */
+  .searchbar {
+    margin: 12px 16px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--fill);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 14px;
+  }
+  .searchbar [data-lucide] { width: 18px; height: 18px; color: var(--muted); flex-shrink: 0; }
+  .searchbar .sph { font-size: 15px; color: var(--muted); }
+
+  /* A3. 分段控制器（iOS segmented control） */
+  .segment {
+    margin: 12px 16px;
+    display: flex;
+    background: var(--fill);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 3px;
+  }
+  .segment .seg {
+    flex: 1;
+    text-align: center;
+    font-size: 14px;
+    color: var(--muted);
+    padding: 7px 0;
+    border-radius: 8px;
+  }
+  .segment .seg.active {
+    background: var(--white);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(33,37,41,0.1);
+  }
+
+  /* A4. 底部 CTA 操作栏：贴底、一到两个大按钮 */
+  .cta-bar {
+    flex-shrink: 0;
+    border-top: 1px solid var(--line-soft);
+    background: var(--white);
+    padding: 12px 16px 16px;
+    display: flex;
+    gap: 10px;
+  }
+
+  /* ===== 通用按钮（CTA / 卡片内 / 表单皆可用） ===== */
+  .btn {
+    flex: 1;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+  .btn [data-lucide] { width: 18px; height: 18px; }
+  .btn.primary { background: var(--ink); color: var(--white); }
+  .btn.primary [data-lucide] { color: var(--white); }
+  .btn.ghost { background: var(--fill); color: var(--ink); }
+  .btn.outline { background: var(--white); color: var(--ink); border: 1px solid var(--hairline); }
+  /* 小尺寸按钮（卡片内 / 行内用） */
+  .btn.sm { height: 36px; border-radius: 10px; font-size: 14px; flex: 0 0 auto; padding: 0 16px; }
+
+  /* ===== B. 内容容器 ===== */
+
+  /* B1. 通用卡片 */
+  .card {
+    margin: 12px 16px;
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .card .card-hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .card .card-hd .ct { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .card .card-hd .cmore { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 2px; }
+  .card .card-hd .cmore [data-lucide] { width: 15px; height: 15px; color: var(--line); }
+  .card .card-bd { padding: 14px 16px; }
+  /* 卡片内若直接放 .list-item，去掉左右额外内距让分隔线通栏 */
+  .card .list-item { padding-left: 16px; padding-right: 16px; }
+
+  /* B2. 功能宫格（九宫格入口） */
+  .grid {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 8px 8px 4px;
+  }
+  .grid .grid-item {
+    width: 25%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 4px;
+  }
+  .grid .grid-item .gic {
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    background: var(--fill);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .grid .grid-item .gic [data-lucide] { width: 24px; height: 24px; }
+  .grid .grid-item .glabel { font-size: 12px; color: var(--ink); letter-spacing: 0.2px; text-align: center; }
+
+  /* B3. 横向滚动卡片 */
+  .hscroll {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 4px 16px 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hscroll .hcard {
+    flex: 0 0 auto;
+    width: 140px;
+  }
+  .hscroll .hcard .htitle { font-size: 15px; font-weight: 600; color: var(--ink); margin-top: 8px; line-height: 1.3; }
+  .hscroll .hcard .hsub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* B4. Banner / 轮播占位 */
+  .banner {
+    margin: 12px 16px;
+    height: 140px;
+    border-radius: 14px;
+    background: var(--fill);
+    color: var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .banner [data-lucide] { width: 32px; height: 32px; color: var(--line); }
+  .banner .dots {
+    position: absolute;
+    bottom: 12px; left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+  }
+  .banner .dots i {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--line);
+    display: block;
+  }
+  .banner .dots i.on { background: var(--ink); width: 16px; border-radius: 3px; }
+
+  /* ===== C. 媒体 / 列表变体 ===== */
+
+  /* C0. 通用缩略图占位（卡片 / 媒体 / 商品复用） */
+  .thumb {
+    background: var(--fill);
+    color: var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .thumb [data-lucide] { width: 24px; height: 24px; color: var(--line); }
+
+  /* C1. 媒体列表项：左缩略图 + 右文案 */
+  .media-item {
+    display: flex;
+    gap: 13px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .media-item:last-child { border-bottom: none; }
+  .media-item .thumb { width: 72px; height: 72px; flex-shrink: 0; }
+  .media-item .mtxt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .media-item .mtxt .m1 { font-size: 17px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+  .media-item .mtxt .m2 { font-size: 15px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+  .media-item .mtxt .m3 { font-size: 12px; color: var(--line); margin-top: auto; padding-top: 6px; letter-spacing: 0.2px; }
+
+  /* ===== D. 电商：商品卡网格 ===== */
+  .product-grid {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 12px;
+  }
+  .product-grid .product {
+    width: calc(50% - 6px);
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .product .thumb { width: 100%; height: 150px; border-radius: 0; }
+  .product .pinfo { padding: 10px 12px 12px; }
+  /* 标题恒占两行高度（单行也预留第二行的空间），保证同排卡片的价格行与加购钮始终水平对齐——
+     单行/双行混排不再错位。超过两行截断。 */
+  .product .pname {
+    font-size: 15px;
+    color: var(--ink);
+    line-height: 1.35;
+    height: 2.7em;             /* = 2 行（line-height 1.35 × 2） */
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .product .prow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+  }
+  .product .price { font-size: 17px; font-weight: 600; color: var(--ink); }
+  .product .price small { font-size: 12px; font-weight: 500; margin-right: 1px; }
+  .product .add {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .product .add [data-lucide] { width: 16px; height: 16px; color: var(--white); }
+
+  /* ===== E. 社交 / Feed ===== */
+  .feed-item {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-item .fhead { display: flex; align-items: center; gap: 10px; }
+  .feed-item .fhead .fname { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .feed-item .fhead .ftime { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .feed-item .ftext { font-size: 15px; color: var(--ink); line-height: 1.5; margin-top: 11px; }
+  .feed-item .fmedia { width: 100%; height: 180px; margin-top: 11px; }
+  .feed-item .facts {
+    display: flex;
+    gap: 28px;
+    margin-top: 13px;
+  }
+  .feed-item .facts .fact {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .feed-item .facts .fact [data-lucide] { width: 18px; height: 18px; color: var(--muted); }
+
+  /* 评论行 */
+  .comment {
+    display: flex;
+    gap: 10px;
+    padding: 12px 20px;
+  }
+  .comment .ctext { flex: 1; min-width: 0; }
+  .comment .ctext .cname { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .comment .ctext .cbody { font-size: 15px; color: var(--ink); line-height: 1.45; margin-top: 2px; }
+
+  /* 小头像（Feed / 评论 / 列表通用） */
+  .avatar-sm {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--fill);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .avatar-sm [data-lucide] { width: 20px; height: 20px; }
+
+  /* ===== F. 表单 / 小部件 / 状态 ===== */
+
+  /* F1. 表单输入（静态展示，含已填 / 占位两态） */
+  .form-field { padding: 8px 20px; }
+  .form-field .flabel { font-size: 13px; color: var(--muted); letter-spacing: 0.2px; margin-bottom: 7px; }
+  .form-field .finput {
+    min-height: 44px;
+    border-radius: 10px;
+    background: var(--fill);
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .form-field .finput.ph { color: var(--line); }      /* 占位态 */
+  .form-field .finput.area { min-height: 88px; align-items: flex-start; }
+
+  /* F2. 标签 / 筛选胶囊 */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px;
+  }
+  .chips .chip {
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--fill);
+    border-radius: 16px;
+    padding: 7px 14px;
+    letter-spacing: 0.2px;
+  }
+  .chips .chip.active { background: var(--ink); color: var(--white); }
+
+  /* F3. 空状态 */
+  .empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 60px 40px;
+    gap: 6px;
+  }
+  .empty .eic {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: var(--fill);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  .empty .eic [data-lucide] { width: 32px; height: 32px; color: var(--line); }
+  .empty .e1 { font-size: 17px; font-weight: 600; color: var(--ink); }
+  .empty .e2 { font-size: 14px; color: var(--muted); line-height: 1.5; }
+
+  /* F4. 步骤 / 时间线（订单进度、流程节点） */
+  .timeline { padding: 14px 20px; }
+  .timeline .tl-item {
+    display: flex;
+    gap: 14px;
+    position: relative;
+    padding-bottom: 22px;
+  }
+  .timeline .tl-item:last-child { padding-bottom: 0; }
+  /* 圆点 + 贯穿竖线 */
+  .timeline .tl-item .tl-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    background: var(--white);
+    flex-shrink: 0;
+    margin-top: 2px;
+    z-index: 1;
+  }
+  .timeline .tl-item.done .tl-dot { background: var(--ink); border-color: var(--ink); }
+  .timeline .tl-item:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 6px; top: 16px;
+    width: 2px; bottom: 0;
+    background: var(--line-soft);
+  }
+  .timeline .tl-item .tl-txt { flex: 1; min-width: 0; }
+  .timeline .tl-item .tl-1 { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.3; }
+  .timeline .tl-item .tl-2 { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* F5. 星级评分 */
+  .rating { display: inline-flex; align-items: center; gap: 2px; }
+  .rating [data-lucide] { width: 15px; height: 15px; color: var(--ink); fill: var(--ink); }
+  .rating [data-lucide].off { color: var(--line); fill: none; }
+  .rating .rnum { font-size: 13px; color: var(--muted); margin-left: 5px; }
+
+  /* 价格强调（详情页大价格） */
+  .price-lg { font-size: 28px; font-weight: 700; color: var(--ink); letter-spacing: 0.5px; }
+  .price-lg small { font-size: 15px; font-weight: 500; margin-right: 2px; }
+
+  /* ===== G. 地图（线框风：浅网格底 + 定位针 + 可选路线/卡片）===== */
+  .map {
+    position: relative;
+    width: 100%;
+    height: 240px;
+    background: var(--fill);
+    /* 隐约街道网格：两组发丝线交叉，纯 CSS，无图片依赖 */
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 32px 32px;
+    overflow: hidden;
+  }
+  /* 一条斜穿的“主干道”，让地图不那么空 */
+  .map .road {
+    position: absolute;
+    left: -10%; top: 60%;
+    width: 130%; height: 6px;
+    background: var(--hairline);
+    transform: rotate(-18deg);
+  }
+  .map .road.v {
+    left: 38%; top: -10%;
+    width: 6px; height: 130%;
+    transform: rotate(-18deg);
+  }
+  /* 居中定位针：圆头 + 尖尾（与标注图钉同款几何，但更大、墨色） */
+  .map .pin {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 30px; height: 30px;
+    transform: translate(-50%, -100%);
+    background: var(--ink);
+    border: 3px solid var(--white);
+    border-radius: 50% 50% 50% 3px;
+    rotate: -45deg;   /* 尖角朝下，指向地点（逆时针 90°）*/
+    box-shadow: 0 4px 10px rgba(33,37,41,0.28);
+  }
+  .map .pin::after {     /* 针中心白点 */
+    content: "";
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 8px; height: 8px;
+    background: var(--white);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  /* 浮在地图底部的信息卡（如“距你 1.2km”） */
+  .map .map-card {
+    position: absolute;
+    left: 12px; right: 12px; bottom: 12px;
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    box-shadow: var(--anno-shadow);
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .map .map-card .mc-ic {
+    width: 38px; height: 38px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--fill);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .map .map-card .mc-ic [data-lucide] { width: 20px; height: 20px; }
+  .map .map-card .mc-tx { flex: 1; min-width: 0; }
+  .map .map-card .mc-1 { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .map .map-card .mc-2 { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  /* ===== H. 折线图（内联 SVG，html2canvas 可正常截图）===== */
+  /* 结构：.linechart > svg(viewBox 0 0 300 160) + .ln-labels。
+     折线 path 用 --ink，面积填充用极淡灰，网格线 --line-soft。坐标由作者按数据填写。 */
+  .linechart { padding: 4px 4px 0; }
+  .linechart svg { display: block; width: 100%; height: auto; }
+  .linechart .ln-grid { stroke: var(--line-soft); stroke-width: 1; }
+  .linechart .ln-area { fill: var(--fill-2); opacity: 0.6; }
+  .linechart .ln-path { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .linechart .ln-dot { fill: var(--white); stroke: var(--ink); stroke-width: 2; }
+  .linechart .ln-labels {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 6px 0;
+  }
+  .linechart .ln-labels span { font-size: 12px; color: var(--muted); }
+
+  /* ===== I. 圆环 / 占比图（内联 SVG）===== */
+  /* 用 stroke-dasharray 画环。中心可放百分比数字。配图例 .donut-legend。 */
+  .donut-wrap { display: flex; align-items: center; gap: 20px; padding: 6px 4px; }
+  .donut { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
+  .donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .donut .d-track { fill: none; stroke: var(--fill-2); stroke-width: 14; }
+  .donut .d-seg { fill: none; stroke: var(--ink); stroke-width: 14; stroke-linecap: round; }
+  .donut .d-seg.soft { stroke: var(--line); }
+  .donut .d-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .donut .d-center .d-num { font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1; }
+  .donut .d-center .d-lbl { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .donut-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .donut-legend .lg-row { display: flex; align-items: center; gap: 9px; font-size: 13px; color: var(--ink); }
+  .donut-legend .lg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; background: var(--ink); }
+  .donut-legend .lg-dot.soft { background: var(--line); }
+  .donut-legend .lg-dot.faint { background: var(--fill-2); }
+  .donut-legend .lg-val { margin-left: auto; color: var(--muted); }
+
   /* 流程内的列（页面 / 箭头）一律不压缩，保持原尺寸横向排开 */
   .stage, .arrow { flex-shrink: 0; }
 
@@ -745,6 +1310,52 @@
   }
   .anno-modal .actions button.primary:hover { background: #2a2e33; }
 
+  /* ===================== 图标急救安全网 =====================
+     默认隐藏；仅当 Lucide CDN 加载失败（图标空白）时，由脚本加 body.icons-broken 才显示。
+     ⚠ 这套 UI 本身绝不依赖任何图标库：问号用纯字符 "?" + CSS 绘制，
+       提示与弹窗用纯文本——否则图标坏掉时连求助入口都会是空白，兜底失效。 */
+  .icon-sos { display: none; }
+  body.icons-broken .icon-sos { display: block; }
+  .icon-sos-btn {
+    position: fixed;
+    right: 20px; bottom: 20px;
+    z-index: 9990;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    box-shadow: var(--anno-shadow);
+    color: var(--muted);
+    font-size: 18px;
+    font-weight: 600;
+    font-family: "PingFang SC", system-ui, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, transform .12s;
+  }
+  .icon-sos-btn:hover { color: var(--ink); border-color: var(--line); transform: scale(1.06); }
+  /* hover 提示气泡：定位在问号上方，纯文本 */
+  .icon-sos-tip {
+    position: fixed;
+    right: 20px; bottom: 64px;
+    z-index: 9990;
+    max-width: 230px;
+    background: var(--ink);
+    color: var(--white);
+    font-size: 12px;
+    line-height: 1.5;
+    border-radius: 10px;
+    padding: 9px 12px;
+    box-shadow: var(--anno-shadow);
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+    transition: opacity .15s, transform .15s;
+  }
+  .icon-sos-btn:hover + .icon-sos-tip { opacity: 1; transform: translateY(0); }
+
   /* ===================== Lucide 图标统一尺寸/描边 ===================== */
   [data-lucide] { stroke-width: 1.75; color: var(--ink); display: inline-block; vertical-align: middle; }
   .list-item .ic [data-lucide] { width: 24px; height: 24px; }
@@ -753,6 +1364,7 @@
   .chat-hero .avatar [data-lucide] { width: 36px; height: 36px; }
   .perm-tip .pic [data-lucide] { width: 18px; height: 18px; }
   .chat-input .send [data-lucide] { width: 18px; height: 18px; }
+  /* 扩展组件的图标尺寸大多已在各自规则里就近声明；这里只兜底未覆盖到的情形 */
 </style>
 </head>
 <body>
@@ -760,59 +1372,58 @@
   <div class="canvas">
 
   <div class="page-header">
-    <h1 id="docTitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑标题…" title="点击编辑标题">轻记 · 习惯打卡 · 页面流程线框图</h1>
-    <p id="docSubtitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑副标题…" title="点击编辑副标题">从首页分两条路线：查看习惯（习惯详情→数据统计） / 新建习惯</p>
+    <h1 id="docTitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑标题…" title="点击编辑标题">悠集 · 生活好物 · 全流程线框图</h1>
+    <p id="docSubtitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑副标题…" title="点击编辑副标题">从首页分出五条主线：购物（分类→详情→购物车→确认→支付成功）· 搜索（→结果，卡片汇聚到商品详情）· 发现（Feed→内容详情）· 我的（嵌套：订单→订单详情含地图 / 消费统计）· 门店（附近门店→门店详情）</p>
   </div>
 
-  <!-- 本文件是「黄金样例」：演示列表页 / 详情页 / 统计图表页 / 分支布局 / 普通箭头。
-       生成新原型时对照此文件的写法即可。 -->
+  <!-- 完整 App 全流程视图（17 页）：首页(origin)分五条主线。
+       购物：分类→商品列表→商品详情→购物车→确认订单→支付成功
+       搜索：搜索→搜索结果（虚线/实线 xlink 汇聚到商品详情）
+       发现：社区 Feed→内容详情
+       我的：个人中心→{订单列表→订单详情(时间线+地图) / 消费统计}（嵌套子分叉）
+       门店：附近门店(地图)→门店详情
+       演示：扩展组件全家桶 + 嵌套分叉 + 跨页汇聚连线 xlink。 -->
   <div class="flow branched">
 
-    <!-- ========== ① 首页（习惯列表 · 分叉来源） ========== -->
+    <!-- ========== ① 首页（分叉来源） ========== -->
     <div class="stage origin">
       <div class="stage-label">① 首页</div>
       <div class="screen">
         <div class="navbar">
-          <span class="nav-btn ghost"></span>
-          <span class="title">我的习惯</span>
-          <span class="nav-btn"><i data-lucide="plus"></i></span>
+          <span class="nav-btn"><i data-lucide="map-pin"></i></span>
+          <span class="title">悠集</span>
+          <span class="nav-btn"><i data-lucide="bell"></i></span>
         </div>
         <div class="body">
-          <div class="section-cap">今日打卡</div>
-          <div class="list-item">
-            <div class="ic"><i data-lucide="footprints"></i></div>
-            <div class="txt">
-              <div class="t1">晨跑</div>
-              <div class="t2">已连续 12 天 · 今日待打卡</div>
-            </div>
-            <div class="chev"><i data-lucide="chevron-right"></i></div>
+          <div class="searchbar">
+            <i data-lucide="search"></i>
+            <span class="sph">搜索好物 / 店铺</span>
           </div>
-          <div class="list-item">
-            <div class="ic"><i data-lucide="book-open"></i></div>
-            <div class="txt">
-              <div class="t1">阅读 30 分钟</div>
-              <div class="t2">已连续 5 天 · 已完成</div>
-            </div>
-            <div class="chev"><i data-lucide="chevron-right"></i></div>
+          <div class="banner">
+            <i data-lucide="image"></i>
+            <div class="dots"><i class="on"></i><i></i><i></i></div>
           </div>
-          <div class="list-item">
-            <div class="ic"><i data-lucide="glass-water"></i></div>
-            <div class="txt">
-              <div class="t1">喝水 8 杯</div>
-              <div class="t2">6 / 8 杯</div>
-            </div>
-            <div class="chev"><i data-lucide="chevron-right"></i></div>
+          <div class="grid">
+            <div class="grid-item"><div class="gic"><i data-lucide="ticket"></i></div><div class="glabel">领券</div></div>
+            <div class="grid-item"><div class="gic"><i data-lucide="flame"></i></div><div class="glabel">热卖</div></div>
+            <div class="grid-item"><div class="gic"><i data-lucide="truck"></i></div><div class="glabel">物流</div></div>
+            <div class="grid-item"><div class="gic"><i data-lucide="gift"></i></div><div class="glabel">积分</div></div>
           </div>
-
-          <div class="section-cap">操作</div>
-          <div class="list-item">
-            <div class="ic"><i data-lucide="plus-circle"></i></div>
-            <div class="txt">
-              <div class="t1">新建习惯</div>
-              <div class="t2">添加一个想坚持的事</div>
-            </div>
-            <div class="chev"><i data-lucide="chevron-right"></i></div>
+          <div class="card">
+            <div class="card-hd"><span class="ct">为你推荐</span><span class="cmore">更多<i data-lucide="chevron-right"></i></span></div>
           </div>
+          <div class="hscroll">
+            <div class="hcard"><div class="thumb" style="height:90px"><i data-lucide="image"></i></div><div class="htitle">春日新品</div><div class="hsub">限时 8 折</div></div>
+            <div class="hcard"><div class="thumb" style="height:90px"><i data-lucide="image"></i></div><div class="htitle">人气榜单</div><div class="hsub">每日更新</div></div>
+            <div class="hcard"><div class="thumb" style="height:90px"><i data-lucide="image"></i></div><div class="htitle">附近好店</div><div class="hsub">3km 内</div></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab active"><i data-lucide="home"></i><div class="tlabel">首页</div></div>
+          <div class="tab"><i data-lucide="layout-grid"></i><div class="tlabel">分类</div></div>
+          <div class="tab"><i data-lucide="compass"></i><div class="tlabel">发现</div></div>
+          <div class="tab"><i data-lucide="shopping-bag"></i><div class="tlabel">购物车</div></div>
+          <div class="tab"><i data-lucide="user"></i><div class="tlabel">我的</div></div>
         </div>
       </div>
     </div>
@@ -821,117 +1432,240 @@
 
     <div class="branches">
 
-      <!-- 主线 · 查看习惯：详情 → 统计 -->
-      <div class="branch" data-tag="点击「晨跑」">
+      <!-- ============================================================
+           主线 · 购物漏斗：分类 → 列表 → 详情 → 购物车 → 确认 → 支付成功
+           ============================================================ -->
+      <div class="branch" data-tag="点击「分类」">
 
-        <!-- ② 习惯详情 -->
+        <!-- ② 分类 -->
         <div class="stage">
-          <div class="stage-label">② 习惯详情</div>
+          <div class="stage-label">② 分类</div>
           <div class="screen">
             <div class="navbar">
-              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
-              <span class="title">晨跑</span>
-              <span class="nav-btn"><i data-lucide="settings"></i></span>
+              <span class="nav-btn ghost"></span>
+              <span class="title">分类</span>
+              <span class="nav-btn"><i data-lucide="search"></i></span>
             </div>
             <div class="body">
-              <div class="perm-tip">
-                <div class="pic"><i data-lucide="footprints"></i></div>
-                <div class="ptxt">
-                  <div class="pt1">晨跑 · 已连续 12 天</div>
-                  <div class="pt2">每天 07:00 · 目标 30 分钟</div>
-                </div>
-                <div class="pbtn">打卡</div>
+              <div class="searchbar"><i data-lucide="search"></i><span class="sph">搜索分类 / 品牌</span></div>
+              <div class="section-cap">服饰穿搭</div>
+              <div class="grid">
+                <div class="grid-item"><div class="gic"><i data-lucide="shirt"></i></div><div class="glabel">女装</div></div>
+                <div class="grid-item"><div class="gic"><i data-lucide="shirt"></i></div><div class="glabel">男装</div></div>
+                <div class="grid-item"><div class="gic"><i data-lucide="footprints"></i></div><div class="glabel">鞋靴</div></div>
+                <div class="grid-item"><div class="gic"><i data-lucide="shopping-bag"></i></div><div class="glabel">箱包</div></div>
               </div>
-
-              <div class="section-cap">本周</div>
-              <div class="list-item">
-                <div class="ic"><i data-lucide="check-circle-2"></i></div>
-                <div class="txt">
-                  <div class="t1">已打卡 5 / 7 天</div>
-                  <div class="t2">周一至周五完成</div>
-                </div>
-                <div class="chev"><i data-lucide="chevron-right"></i></div>
-              </div>
-
-              <div class="section-cap">更多</div>
-              <div class="list-item">
-                <div class="ic"><i data-lucide="bar-chart-3"></i></div>
-                <div class="txt">
-                  <div class="t1">数据统计</div>
-                  <div class="t2">查看坚持趋势</div>
-                </div>
-                <div class="chev"><i data-lucide="chevron-right"></i></div>
+              <div class="section-cap">居家生活</div>
+              <div class="grid">
+                <div class="grid-item"><div class="gic"><i data-lucide="bed"></i></div><div class="glabel">家居</div></div>
+                <div class="grid-item"><div class="gic"><i data-lucide="utensils"></i></div><div class="glabel">厨具</div></div>
+                <div class="grid-item"><div class="gic"><i data-lucide="sparkles"></i></div><div class="glabel">美妆</div></div>
+                <div class="grid-item"><div class="gic"><i data-lucide="package"></i></div><div class="glabel">数码</div></div>
               </div>
             </div>
           </div>
         </div>
 
         <div class="arrow">
-          <div class="tag">点击「数据统计」</div>
-          <div class="line">
-            <svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
+          <div class="tag">点击「女装」</div>
+          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         </div>
 
-        <!-- ③ 数据统计（图表页） -->
+        <!-- ③ 商品列表 -->
         <div class="stage">
-          <div class="stage-label">③ 数据统计</div>
+          <div class="stage-label">③ 商品列表</div>
           <div class="screen">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
-              <span class="title">晨跑 · 统计</span>
+              <span class="title">女装</span>
+              <span class="nav-btn"><i data-lucide="sliders-horizontal"></i></span>
+            </div>
+            <div class="body">
+              <div class="chips">
+                <span class="chip active">全部</span><span class="chip">上衣</span><span class="chip">裙装</span><span class="chip">外套</span><span class="chip">裤装</span>
+              </div>
+              <div class="product-grid">
+                <div class="product"><div class="thumb"><i data-lucide="image"></i></div><div class="pinfo"><div class="pname">轻薄羊毛针织衫 多色可选</div><div class="prow"><span class="price"><small>¥</small>199</span><span class="add"><i data-lucide="plus"></i></span></div></div></div>
+                <div class="product"><div class="thumb"><i data-lucide="image"></i></div><div class="pinfo"><div class="pname">纯棉基础款 T 恤</div><div class="prow"><span class="price"><small>¥</small>89</span><span class="add"><i data-lucide="plus"></i></span></div></div></div>
+                <div class="product"><div class="thumb"><i data-lucide="image"></i></div><div class="pinfo"><div class="pname">高腰阔腿休闲裤</div><div class="prow"><span class="price"><small>¥</small>159</span><span class="add"><i data-lucide="plus"></i></span></div></div></div>
+                <div class="product"><div class="thumb"><i data-lucide="image"></i></div><div class="pinfo"><div class="pname">小香风短款外套</div><div class="prow"><span class="price"><small>¥</small>329</span><span class="add"><i data-lucide="plus"></i></span></div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">
+          <div class="tag">点击商品</div>
+          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+
+        <!-- ④ 商品详情（汇聚点：商品列表 + 搜索结果都到这里，id=pdp） -->
+        <div class="stage">
+          <div class="stage-label">④ 商品详情</div>
+          <div class="screen" id="pdp">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">商品详情</span>
+              <span class="nav-btn"><i data-lucide="share-2"></i></span>
+            </div>
+            <div class="body">
+              <div class="thumb" style="height:280px;border-radius:0"><i data-lucide="image"></i></div>
+              <div class="form-field" style="padding-top:14px"><div class="price-lg"><small>¥</small>199</div></div>
+              <div class="form-field" style="padding-top:4px"><div class="m1" style="font-size:17px;font-weight:600;line-height:1.4">轻薄羊毛针织衫 多色可选 春秋百搭</div></div>
+              <div class="chips" style="padding-top:4px">
+                <span class="rating">
+                  <i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star" class="off"></i>
+                  <span class="rnum">4.0 · 1.2万评价</span>
+                </span>
+              </div>
+              <div class="card">
+                <div class="list-item"><div class="ic"><i data-lucide="tag"></i></div><div class="txt"><div class="t1">选择规格</div><div class="t2">颜色 · 尺码</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+                <div class="list-item"><div class="ic"><i data-lucide="truck"></i></div><div class="txt"><div class="t1">配送</div><div class="t2">包邮 · 预计 48 小时内发货</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+              </div>
+            </div>
+            <div class="cta-bar">
+              <div class="btn ghost"><i data-lucide="shopping-cart"></i>加入购物车</div>
+              <div class="btn primary">立即购买</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">
+          <div class="tag">点击「加入购物车」</div>
+          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+
+        <!-- ⑤ 购物车 -->
+        <div class="stage">
+          <div class="stage-label">⑤ 购物车</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">购物车</span>
               <span class="nav-btn ghost"></span>
             </div>
-            <div class="stat-scroll">
-              <div class="stat-summary">
-                <div class="stat">
-                  <div class="num">12</div>
-                  <div class="lbl">连续天数</div>
-                </div>
-                <div class="stat">
-                  <div class="num">86<small>%</small></div>
-                  <div class="lbl">完成率</div>
-                </div>
-                <div class="stat">
-                  <div class="num">38</div>
-                  <div class="lbl">累计打卡</div>
+            <div class="body">
+              <div class="media-item"><div class="thumb"><i data-lucide="image"></i></div><div class="mtxt"><div class="m1">轻薄羊毛针织衫</div><div class="m2">米白 · M</div><div class="m3">¥199 × 1</div></div></div>
+              <div class="media-item"><div class="thumb"><i data-lucide="image"></i></div><div class="mtxt"><div class="m1">纯棉基础款 T 恤</div><div class="m2">黑色 · L</div><div class="m3">¥89 × 2</div></div></div>
+              <div class="form-field" style="padding-top:14px"><div class="flabel">优惠券</div><div class="finput">满 300 减 30 · 已选用</div></div>
+              <div class="form-field"><div class="flabel">备注</div><div class="finput area ph">选填：对本单的特殊说明…</div></div>
+            </div>
+            <div class="cta-bar">
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:center"><span style="font-size:12px;color:var(--muted)">合计</span><span class="price"><small>¥</small>347</span></div>
+              <div class="btn primary" style="flex:0 0 150px">去结算</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">
+          <div class="tag">点击「去结算」</div>
+          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+
+        <!-- ⑥ 确认订单 -->
+        <div class="stage">
+          <div class="stage-label">⑥ 确认订单</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">确认订单</span>
+              <span class="nav-btn ghost"></span>
+            </div>
+            <div class="body">
+              <div class="list-item"><div class="ic"><i data-lucide="map-pin"></i></div><div class="txt"><div class="t1">张三 · 138****6688</div><div class="t2">浙江省杭州市余杭区 文一西路 969 号</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+              <div class="media-item"><div class="thumb"><i data-lucide="image"></i></div><div class="mtxt"><div class="m1">轻薄羊毛针织衫</div><div class="m2">米白 · M</div><div class="m3">¥199 × 1</div></div></div>
+              <div class="media-item"><div class="thumb"><i data-lucide="image"></i></div><div class="mtxt"><div class="m1">纯棉基础款 T 恤</div><div class="m2">黑色 · L</div><div class="m3">¥89 × 2</div></div></div>
+              <div class="list-item"><div class="ic"><i data-lucide="ticket"></i></div><div class="txt"><div class="t1">优惠券</div><div class="t2">满 300 减 30</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+              <div class="list-item"><div class="ic"><i data-lucide="credit-card"></i></div><div class="txt"><div class="t1">支付方式</div><div class="t2">微信支付</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+            </div>
+            <div class="cta-bar">
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:center"><span style="font-size:12px;color:var(--muted)">实付</span><span class="price"><small>¥</small>347</span></div>
+              <div class="btn primary" style="flex:0 0 150px">提交订单</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">
+          <div class="tag">点击「提交订单」</div>
+          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+
+        <!-- ⑦ 支付成功 -->
+        <div class="stage">
+          <div class="stage-label">⑦ 支付成功</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn ghost"></span>
+              <span class="title">支付结果</span>
+              <span class="nav-btn ghost"></span>
+            </div>
+            <div class="body">
+              <div class="empty" style="flex:0 0 auto;padding:48px 40px 24px">
+                <div class="eic" style="background:var(--ink)"><i data-lucide="check" style="color:#fff"></i></div>
+                <div class="e1">支付成功</div>
+                <div class="e2">¥347 已支付 · 商家将尽快为你发货</div>
+              </div>
+              <div class="card">
+                <div class="card-bd" style="display:flex;align-items:center;justify-content:space-between">
+                  <span style="font-size:15px;color:var(--ink)">预计送达</span>
+                  <span style="font-size:15px;font-weight:600;color:var(--ink)">明天 18:00 前</span>
                 </div>
               </div>
+            </div>
+            <div class="cta-bar">
+              <div class="btn ghost">返回首页</div>
+              <div class="btn primary">查看订单</div>
+            </div>
+          </div>
+        </div>
 
-              <div class="stat-progress">
-                <div class="pg-head">
-                  <span class="pg-title">本月目标</span>
-                  <span class="pg-meta">26 / 30 天</span>
-                </div>
-                <div class="pg-track"><div class="pg-fill" style="width:86%"></div></div>
-              </div>
+      </div>
 
-              <div class="chart-block">
-                <div class="ch-title">最近 5 周打卡天数</div>
-                <div class="bars">
-                  <div class="bar-col">
-                    <div class="bar-track"><span class="bar-cap">4</span><div class="bar" style="height:57%"></div></div>
-                    <div class="bar-lbl">W1</div>
-                  </div>
-                  <div class="bar-col">
-                    <div class="bar-track"><span class="bar-cap">5</span><div class="bar" style="height:71%"></div></div>
-                    <div class="bar-lbl">W2</div>
-                  </div>
-                  <div class="bar-col">
-                    <div class="bar-track"><span class="bar-cap">6</span><div class="bar" style="height:86%"></div></div>
-                    <div class="bar-lbl">W3</div>
-                  </div>
-                  <div class="bar-col hot">
-                    <div class="bar-track"><span class="bar-cap">7</span><div class="bar" style="height:100%"></div></div>
-                    <div class="bar-lbl">W4</div>
-                  </div>
-                  <div class="bar-col">
-                    <div class="bar-track"><span class="bar-cap">5</span><div class="bar" style="height:71%"></div></div>
-                    <div class="bar-lbl">W5</div>
-                  </div>
-                </div>
+      <!-- ============================================================
+           搜索线：搜索 → 搜索结果（搜索结果卡片 xlink 汇聚到 ④商品详情）
+           ============================================================ -->
+      <div class="branch" data-tag="点击搜索栏">
+
+        <!-- ⑧ 搜索 -->
+        <div class="stage">
+          <div class="stage-label">⑧ 搜索</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">搜索</span>
+              <span class="nav-btn ghost"></span>
+            </div>
+            <div class="body">
+              <div class="searchbar"><i data-lucide="search"></i><span class="sph">针织衫</span></div>
+              <div class="section-cap">历史搜索</div>
+              <div class="chips"><span class="chip">针织衫</span><span class="chip">连衣裙</span><span class="chip">运动鞋</span><span class="chip">双肩包</span></div>
+              <div class="section-cap">热门搜索</div>
+              <div class="chips"><span class="chip">春季新品</span><span class="chip">百搭外套</span><span class="chip">通勤穿搭</span><span class="chip">小香风</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">
+          <div class="tag">输入并搜索</div>
+          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+
+        <!-- ⑨ 搜索结果（id=search-result，卡片可点进商品详情，xlink 汇聚到 ④） -->
+        <div class="stage">
+          <div class="stage-label">⑨ 搜索结果</div>
+          <div class="screen" id="search-result">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">针织衫</span>
+              <span class="nav-btn"><i data-lucide="sliders-horizontal"></i></span>
+            </div>
+            <div class="body">
+              <div class="segment"><div class="seg active">综合</div><div class="seg">销量</div><div class="seg">价格</div><div class="seg">新品</div></div>
+              <div class="product-grid">
+                <div class="product"><div class="thumb"><i data-lucide="image"></i></div><div class="pinfo"><div class="pname">轻薄羊毛针织衫 多色可选</div><div class="prow"><span class="price"><small>¥</small>199</span><span class="add"><i data-lucide="plus"></i></span></div></div></div>
+                <div class="product"><div class="thumb"><i data-lucide="image"></i></div><div class="pinfo"><div class="pname">高领修身打底针织衫</div><div class="prow"><span class="price"><small>¥</small>129</span><span class="add"><i data-lucide="plus"></i></span></div></div></div>
+                <div class="product"><div class="thumb"><i data-lucide="image"></i></div><div class="pinfo"><div class="pname">宽松麻花针织开衫</div><div class="prow"><span class="price"><small>¥</small>239</span><span class="add"><i data-lucide="plus"></i></span></div></div></div>
+                <div class="product"><div class="thumb"><i data-lucide="image"></i></div><div class="pinfo"><div class="pname">薄款冰丝针织背心</div><div class="prow"><span class="price"><small>¥</small>79</span><span class="add"><i data-lucide="plus"></i></span></div></div></div>
               </div>
             </div>
           </div>
@@ -939,51 +1673,334 @@
 
       </div>
 
-      <!-- 次线 · 新建习惯 -->
-      <div class="branch" data-tag="点击「新建习惯」">
+      <!-- ============================================================
+           发现线：社区 Feed → 内容详情
+           ============================================================ -->
+      <div class="branch" data-tag="点击「发现」">
+
+        <!-- ⑩ 发现 -->
         <div class="stage">
-          <div class="stage-label">④ 新建习惯</div>
+          <div class="stage-label">⑩ 发现</div>
           <div class="screen">
             <div class="navbar">
-              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
-              <span class="title">新建习惯</span>
-              <span class="nav-btn"><i data-lucide="check"></i></span>
+              <span class="nav-btn ghost"></span>
+              <span class="title">发现</span>
+              <span class="nav-btn"><i data-lucide="search"></i></span>
             </div>
             <div class="body">
-              <div class="section-cap">选择类型</div>
-              <div class="list-item">
-                <div class="ic"><i data-lucide="footprints"></i></div>
-                <div class="txt">
-                  <div class="t1">运动</div>
-                  <div class="t2">晨跑 · 健身 · 步行</div>
-                </div>
-                <div class="chev"><i data-lucide="chevron-right"></i></div>
+              <div class="segment"><div class="seg active">关注</div><div class="seg">推荐</div><div class="seg">附近</div></div>
+              <div class="feed-item">
+                <div class="fhead"><div class="avatar-sm"><i data-lucide="user"></i></div><div><div class="fname">林小一</div><div class="ftime">2 小时前</div></div></div>
+                <div class="ftext">入手了这件针织衫，质感超出预期，搭配什么都好看～</div>
+                <div class="thumb fmedia"><i data-lucide="image"></i></div>
+                <div class="facts"><span class="fact"><i data-lucide="thumbs-up"></i>238</span><span class="fact"><i data-lucide="message-circle"></i>46</span><span class="fact"><i data-lucide="share-2"></i>分享</span></div>
               </div>
-              <div class="list-item">
-                <div class="ic"><i data-lucide="book-open"></i></div>
-                <div class="txt">
-                  <div class="t1">学习</div>
-                  <div class="t2">阅读 · 背单词 · 练习</div>
-                </div>
-                <div class="chev"><i data-lucide="chevron-right"></i></div>
+              <div class="feed-item">
+                <div class="fhead"><div class="avatar-sm"><i data-lucide="user"></i></div><div><div class="fname">陈拾光</div><div class="ftime">昨天</div></div></div>
+                <div class="ftext">分享一套通勤穿搭，整套不到 ¥500，链接放评论区了。</div>
+                <div class="facts"><span class="fact"><i data-lucide="thumbs-up"></i>512</span><span class="fact"><i data-lucide="message-circle"></i>88</span><span class="fact"><i data-lucide="share-2"></i>分享</span></div>
               </div>
-
-              <div class="section-cap">提醒频率</div>
-              <div class="list-item">
-                <div class="ic"><i data-lucide="bell"></i></div>
-                <div class="txt">
-                  <div class="t1">每日提醒</div>
-                  <div class="t2">07:00</div>
-                </div>
-                <div class="switch on"><div class="knob"></div></div>
-              </div>
+            </div>
+            <div class="tabbar">
+              <div class="tab"><i data-lucide="home"></i><div class="tlabel">首页</div></div>
+              <div class="tab"><i data-lucide="layout-grid"></i><div class="tlabel">分类</div></div>
+              <div class="tab active"><i data-lucide="compass"></i><div class="tlabel">发现</div></div>
+              <div class="tab"><i data-lucide="shopping-bag"></i><div class="tlabel">购物车</div></div>
+              <div class="tab"><i data-lucide="user"></i><div class="tlabel">我的</div></div>
             </div>
           </div>
         </div>
+
+        <div class="arrow">
+          <div class="tag">点击动态</div>
+          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+
+        <!-- ⑪ 内容详情 -->
+        <div class="stage">
+          <div class="stage-label">⑪ 内容详情</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">笔记详情</span>
+              <span class="nav-btn"><i data-lucide="share-2"></i></span>
+            </div>
+            <div class="body">
+              <div class="thumb" style="height:220px;border-radius:0"><i data-lucide="image"></i></div>
+              <div class="feed-item" style="border-bottom:none">
+                <div class="fhead"><div class="avatar-sm"><i data-lucide="user"></i></div><div><div class="fname">林小一</div><div class="ftime">2 小时前 · 杭州</div></div></div>
+                <div class="ftext">入手了这件针织衫，质感超出预期！版型很挺括，颜色也很正，春秋单穿或叠搭都好看。已经回购第二件了，强烈推荐给同样喜欢极简风的姐妹～</div>
+                <div class="chips" style="padding-left:0">
+                  <span class="chip">#春日穿搭</span><span class="chip">#针织衫</span><span class="chip">#通勤</span>
+                </div>
+                <div class="facts"><span class="fact"><i data-lucide="thumbs-up"></i>238</span><span class="fact"><i data-lucide="message-circle"></i>46</span><span class="fact"><i data-lucide="bookmark"></i>收藏</span></div>
+              </div>
+              <div class="section-cap">评论 46</div>
+              <div class="comment"><div class="avatar-sm"><i data-lucide="user"></i></div><div class="ctext"><div class="cname">阿May</div><div class="cbody">求链接！这个颜色太好看了</div></div></div>
+              <div class="comment"><div class="avatar-sm"><i data-lucide="user"></i></div><div class="ctext"><div class="cname">小鹿</div><div class="cbody">已下单，等收到来追评～</div></div></div>
+            </div>
+            <div class="chat-input">
+              <div class="field">写评论…</div>
+              <div class="send"><i data-lucide="arrow-up"></i></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ============================================================
+           我的线（嵌套子分叉）：我的 → {订单列表→订单详情(时间线+地图) / 消费统计}
+           ============================================================ -->
+      <div class="branch" data-tag="点击「我的」">
+        <div class="flow branched">
+
+          <!-- ⑫ 我的（子分叉来源） -->
+          <div class="stage origin">
+            <div class="stage-label">⑫ 我的</div>
+            <div class="screen">
+              <div class="navbar">
+                <span class="nav-btn ghost"></span>
+                <span class="title">我的</span>
+                <span class="nav-btn"><i data-lucide="settings"></i></span>
+              </div>
+              <div class="body">
+                <div class="list-item">
+                  <div class="avatar-sm" style="width:56px;height:56px"><i data-lucide="user"></i></div>
+                  <div class="txt" style="margin-left:14px"><div class="t1">林小一</div><div class="t2">悠集会员 · 积分 1280</div></div>
+                  <div class="chev"><i data-lucide="chevron-right"></i></div>
+                </div>
+                <div class="grid">
+                  <div class="grid-item"><div class="gic"><i data-lucide="wallet"></i></div><div class="glabel">钱包</div></div>
+                  <div class="grid-item"><div class="gic"><i data-lucide="ticket"></i></div><div class="glabel">优惠券</div></div>
+                  <div class="grid-item"><div class="gic"><i data-lucide="heart"></i></div><div class="glabel">收藏</div></div>
+                  <div class="grid-item"><div class="gic"><i data-lucide="package"></i></div><div class="glabel">订单</div></div>
+                </div>
+                <div class="card">
+                  <div class="list-item"><div class="ic"><i data-lucide="chart-pie"></i></div><div class="txt"><div class="t1">消费统计</div><div class="t2">查看本月支出与品类占比</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+                  <div class="list-item"><div class="ic"><i data-lucide="map-pin"></i></div><div class="txt"><div class="t1">收货地址</div><div class="t2">管理我的收货地址</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+                  <div class="list-item"><div class="ic"><i data-lucide="headphones"></i></div><div class="txt"><div class="t1">客服中心</div><div class="t2">在线咨询 · 售后</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+                </div>
+              </div>
+              <div class="tabbar">
+                <div class="tab"><i data-lucide="home"></i><div class="tlabel">首页</div></div>
+                <div class="tab"><i data-lucide="layout-grid"></i><div class="tlabel">分类</div></div>
+                <div class="tab"><i data-lucide="compass"></i><div class="tlabel">发现</div></div>
+                <div class="tab"><i data-lucide="shopping-bag"></i><div class="tlabel">购物车</div></div>
+                <div class="tab active"><i data-lucide="user"></i><div class="tlabel">我的</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fork"></div>
+
+          <div class="branches">
+
+            <!-- 子线 a · 订单：订单列表 → 订单详情 -->
+            <div class="branch" data-tag="点击「订单」">
+
+              <!-- ⑬ 订单列表 -->
+              <div class="stage">
+                <div class="stage-label">⑬ 订单列表</div>
+                <div class="screen">
+                  <div class="navbar">
+                    <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+                    <span class="title">我的订单</span>
+                    <span class="nav-btn ghost"></span>
+                  </div>
+                  <div class="body">
+                    <div class="segment"><div class="seg active">全部</div><div class="seg">待付款</div><div class="seg">待收货</div><div class="seg">退款</div></div>
+                    <div class="card">
+                      <div class="card-hd"><span class="ct">悠集自营</span><span class="cmore">运输中</span></div>
+                      <div class="media-item"><div class="thumb"><i data-lucide="image"></i></div><div class="mtxt"><div class="m1">轻薄羊毛针织衫</div><div class="m2">米白 · M</div><div class="m3">¥199 × 1</div></div></div>
+                      <div class="card-bd" style="display:flex;justify-content:flex-end;gap:10px">
+                        <div class="btn primary sm">查看物流</div>
+                      </div>
+                    </div>
+                    <div class="card">
+                      <div class="card-hd"><span class="ct">悠集自营</span><span class="cmore">已完成</span></div>
+                      <div class="media-item"><div class="thumb"><i data-lucide="image"></i></div><div class="mtxt"><div class="m1">纯棉基础款 T 恤</div><div class="m2">黑色 · L</div><div class="m3">¥89 × 2</div></div></div>
+                      <div class="card-bd" style="display:flex;justify-content:flex-end;gap:10px">
+                        <div class="btn ghost sm">再次购买</div><div class="btn outline sm">评价</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="arrow">
+                <div class="tag">点击「查看物流」</div>
+                <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              </div>
+
+              <!-- ⑭ 订单详情（时间线 + 地图） -->
+              <div class="stage">
+                <div class="stage-label">⑭ 订单详情</div>
+                <div class="screen">
+                  <div class="navbar">
+                    <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+                    <span class="title">订单详情</span>
+                    <span class="nav-btn ghost"></span>
+                  </div>
+                  <div class="body">
+                    <!-- 配送地图 -->
+                    <div class="map" style="height:180px">
+                      <div class="road"></div>
+                      <div class="road v"></div>
+                      <div class="pin"></div>
+                      <div class="map-card">
+                        <div class="mc-ic"><i data-lucide="truck"></i></div>
+                        <div class="mc-tx"><div class="mc-1">运输中 · 距你 3.4km</div><div class="mc-2">骑手正赶往你的位置</div></div>
+                      </div>
+                    </div>
+                    <div class="perm-tip">
+                      <div class="pic"><i data-lucide="package"></i></div>
+                      <div class="ptxt"><div class="pt1">预计明天送达</div><div class="pt2">订单号 SF20260607 · 顺丰速运</div></div>
+                    </div>
+                    <div class="section-cap">物流进度</div>
+                    <div class="timeline">
+                      <div class="tl-item done"><div class="tl-dot"></div><div class="tl-txt"><div class="tl-1">已下单</div><div class="tl-2">今天 09:24</div></div></div>
+                      <div class="tl-item done"><div class="tl-dot"></div><div class="tl-txt"><div class="tl-1">已发货</div><div class="tl-2">今天 14:02 · 已揽收</div></div></div>
+                      <div class="tl-item"><div class="tl-dot"></div><div class="tl-txt"><div class="tl-1">运输中</div><div class="tl-2">预计明天送达</div></div></div>
+                      <div class="tl-item"><div class="tl-dot"></div><div class="tl-txt"><div class="tl-1">已签收</div><div class="tl-2">—</div></div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- 子线 b · 消费统计 -->
+            <div class="branch" data-tag="点击「消费统计」">
+              <div class="stage">
+                <div class="stage-label">⑮ 消费统计</div>
+                <div class="screen">
+                  <div class="navbar">
+                    <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+                    <span class="title">消费统计</span>
+                    <span class="nav-btn ghost"></span>
+                  </div>
+                  <div class="stat-scroll">
+                    <div class="stat-summary">
+                      <div class="stat"><div class="num">¥2.4<small>k</small></div><div class="lbl">本月支出</div></div>
+                      <div class="stat"><div class="num">18</div><div class="lbl">订单数</div></div>
+                      <div class="stat"><div class="num">¥133</div><div class="lbl">客单价</div></div>
+                    </div>
+                    <div class="chart-block">
+                      <div class="ch-title">近 6 个月支出趋势</div>
+                      <div class="linechart">
+                        <svg viewBox="0 0 300 160" xmlns="http://www.w3.org/2000/svg">
+                          <line class="ln-grid" x1="0" y1="40" x2="300" y2="40"/>
+                          <line class="ln-grid" x1="0" y1="80" x2="300" y2="80"/>
+                          <line class="ln-grid" x1="0" y1="120" x2="300" y2="120"/>
+                          <path class="ln-area" d="M10 110 L68 90 L126 100 L184 60 L242 70 L290 30 L290 160 L10 160 Z"/>
+                          <path class="ln-path" d="M10 110 L68 90 L126 100 L184 60 L242 70 L290 30"/>
+                          <circle class="ln-dot" cx="10" cy="110" r="3"/><circle class="ln-dot" cx="68" cy="90" r="3"/><circle class="ln-dot" cx="126" cy="100" r="3"/><circle class="ln-dot" cx="184" cy="60" r="3"/><circle class="ln-dot" cx="242" cy="70" r="3"/><circle class="ln-dot" cx="290" cy="30" r="3"/>
+                        </svg>
+                        <div class="ln-labels"><span>1月</span><span>2月</span><span>3月</span><span>4月</span><span>5月</span><span>6月</span></div>
+                      </div>
+                    </div>
+                    <div class="chart-block">
+                      <div class="ch-title">消费品类占比</div>
+                      <div class="donut-wrap">
+                        <div class="donut">
+                          <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                            <circle class="d-track" cx="60" cy="60" r="50"/>
+                            <circle class="d-seg" cx="60" cy="60" r="50" stroke-dasharray="172 314" stroke-dashoffset="0"/>
+                            <circle class="d-seg soft" cx="60" cy="60" r="50" stroke-dasharray="94 314" stroke-dashoffset="-172"/>
+                          </svg>
+                          <div class="d-center"><div class="d-num">¥2.4k</div><div class="d-lbl">本月</div></div>
+                        </div>
+                        <div class="donut-legend">
+                          <div class="lg-row"><span class="lg-dot"></span>服饰穿搭<span class="lg-val">55%</span></div>
+                          <div class="lg-row"><span class="lg-dot soft"></span>居家生活<span class="lg-val">30%</span></div>
+                          <div class="lg-row"><span class="lg-dot faint"></span>其他<span class="lg-val">15%</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           门店线：附近门店(地图) → 门店详情
+           ============================================================ -->
+      <div class="branch" data-tag="点击「附近门店」">
+
+        <!-- ⑯ 附近门店（地图） -->
+        <div class="stage">
+          <div class="stage-label">⑯ 附近门店</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">附近门店</span>
+              <span class="nav-btn"><i data-lucide="search"></i></span>
+            </div>
+            <div class="body">
+              <div class="map">
+                <div class="road"></div>
+                <div class="road v"></div>
+                <div class="pin"></div>
+                <div class="map-card">
+                  <div class="mc-ic"><i data-lucide="store"></i></div>
+                  <div class="mc-tx"><div class="mc-1">悠集生活馆 · 文一路店</div><div class="mc-2">营业中 · 距你 1.2km · 09:00–22:00</div></div>
+                  <div class="chev"><i data-lucide="chevron-right"></i></div>
+                </div>
+              </div>
+              <div class="section-cap">附近其他门店</div>
+              <div class="media-item"><div class="thumb"><i data-lucide="store"></i></div><div class="mtxt"><div class="m1">悠集生活馆 · 黄龙店</div><div class="m2">营业中 · 西湖区黄龙路 18 号</div><div class="m3">距你 2.6km</div></div></div>
+              <div class="media-item"><div class="thumb"><i data-lucide="store"></i></div><div class="mtxt"><div class="m1">悠集生活馆 · 滨江店</div><div class="m2">营业中 · 滨江区江南大道 228 号</div><div class="m3">距你 5.1km</div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow">
+          <div class="tag">点击门店</div>
+          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+
+        <!-- ⑰ 门店详情 -->
+        <div class="stage">
+          <div class="stage-label">⑰ 门店详情</div>
+          <div class="screen">
+            <div class="navbar">
+              <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
+              <span class="title">门店详情</span>
+              <span class="nav-btn"><i data-lucide="share-2"></i></span>
+            </div>
+            <div class="body">
+              <div class="map" style="height:160px">
+                <div class="road"></div>
+                <div class="pin"></div>
+              </div>
+              <div class="form-field" style="padding-top:14px"><div class="m1" style="font-size:17px;font-weight:600">悠集生活馆 · 文一路店</div></div>
+              <div class="chips" style="padding-top:2px">
+                <span class="rating"><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><i data-lucide="star"></i><span class="rnum">4.8 · 326 评价</span></span>
+              </div>
+              <div class="card">
+                <div class="list-item"><div class="ic"><i data-lucide="clock"></i></div><div class="txt"><div class="t1">营业时间</div><div class="t2">每天 09:00 – 22:00</div></div></div>
+                <div class="list-item"><div class="ic"><i data-lucide="map-pin"></i></div><div class="txt"><div class="t1">门店地址</div><div class="t2">余杭区文一西路 969 号 · 距你 1.2km</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+                <div class="list-item"><div class="ic"><i data-lucide="phone"></i></div><div class="txt"><div class="t1">联系电话</div><div class="t2">0571-8888 6688</div></div><div class="chev"><i data-lucide="chevron-right"></i></div></div>
+              </div>
+            </div>
+            <div class="cta-bar">
+              <div class="btn ghost"><i data-lucide="map-pin"></i>导航到店</div>
+              <div class="btn primary">到店自提</div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
     </div>
   </div>
+
+  <!-- 跨页汇聚连线：搜索结果(⑨)的商品卡，可点进 ④商品详情（与商品列表→商品详情形成汇聚） -->
+  <div class="xlink" data-from="search-result" data-to="pdp" data-tag="点击商品 → 商品详情" data-side="top" data-dash="1"></div>
 
   </div><!-- /.canvas -->
 
@@ -1006,6 +2023,12 @@
         <button class="primary" id="annoClose">关闭</button>
       </div>
     </div>
+  </div>
+
+  <!-- 图标急救入口：默认隐藏，仅当图标库加载失败时由脚本显示（问号用纯字符，不依赖图标库） -->
+  <div class="icon-sos">
+    <div class="icon-sos-btn" id="iconSosBtn" title="图标没显示出来？">?</div>
+    <div class="icon-sos-tip">图标没显示出来？点这里复制一段话，发给 AI 即可修复</div>
   </div>
 
 <script>
@@ -1043,6 +2066,15 @@
     const hero = el.closest('.chat-hero');
     const nav = el.closest('.navbar');
     const input = el.closest('.chat-input');
+    // 扩展组件容器
+    const tab = el.closest('.tabbar .tab');
+    const product = el.closest('.product');
+    const feed = el.closest('.feed-item');
+    const gridItem = el.closest('.grid-item');
+    const mediaItem = el.closest('.media-item');
+    const search = el.closest('.searchbar');
+    const cta = el.closest('.cta-bar');
+    const card = el.closest('.card');
 
     if (item) {
       const t = item.querySelector('.t1');
@@ -1056,8 +2088,31 @@
       anchor = '导航栏' + (el.classList.contains('nav-btn') ? '按钮' : (title ? '·' + title.textContent.trim() : ''));
     } else if (input) {
       anchor = '输入栏';
+    } else if (tab) {
+      const lb = tab.querySelector('.tlabel');
+      anchor = '底部Tab:' + (lb ? lb.textContent.trim() : '');
+    } else if (product) {
+      const n = product.querySelector('.pname');
+      anchor = '商品:' + (n ? n.textContent.trim().slice(0, 12) : '');
+    } else if (feed) {
+      const n = feed.querySelector('.fname');
+      anchor = 'Feed动态' + (n ? '·' + n.textContent.trim() : '');
+    } else if (gridItem) {
+      const lb = gridItem.querySelector('.glabel');
+      anchor = '宫格入口:' + (lb ? lb.textContent.trim() : '');
+    } else if (mediaItem) {
+      const m = mediaItem.querySelector('.m1');
+      anchor = m ? m.textContent.trim() : '媒体列表项';
+    } else if (search) {
+      anchor = '搜索栏';
+    } else if (cta) {
+      const b = el.closest('.btn');
+      anchor = '底部操作:' + (b ? b.textContent.trim() : 'CTA');
     } else if (el.classList.contains('section-cap')) {
       anchor = '分组标题:' + el.textContent.trim();
+    } else if (card) {
+      const ct = card.querySelector('.ct');
+      anchor = '卡片' + (ct ? '·' + ct.textContent.trim() : '');
     } else {
       anchor = '页面空白处';
     }
@@ -1401,10 +2456,154 @@
       });
     });
   }
+  // ---------- 跨页连线 drawXlinks：任意两页框之间画正交折线 + 箭头 + tag ----------
+  // 支持多条 xlink 指向同一个目标（天然汇聚）。声明：
+  //   <div class="xlink" data-from="srcId" data-to="dstId" data-tag="说明"
+  //        data-side="auto|right|left|top|bottom" data-dash="1"></div>
+  // 坐标全部相对 .canvas 本地坐标系（.canvas 已 position:relative）。
+  function drawXlinks() {
+    const canvas = document.querySelector('.canvas');
+    if (!canvas) return;
+    const defs = Array.from(document.querySelectorAll('.xlink'));
+    // overlay 与 tag 容器：复用或新建
+    let overlay = canvas.querySelector(':scope > .xlink-overlay');
+    if (!overlay) {
+      overlay = document.createElementNS(SVGNS, 'svg');
+      overlay.setAttribute('class', 'xlink-overlay');
+      canvas.appendChild(overlay);
+    }
+    canvas.querySelectorAll(':scope > .xlink-tag').forEach(n => n.remove());
+    while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
+    if (!defs.length) return;
+
+    const cb = canvas.getBoundingClientRect();
+    overlay.setAttribute('viewBox', `0 0 ${cb.width} ${cb.height}`);
+    overlay.setAttribute('width', cb.width);
+    overlay.setAttribute('height', cb.height);
+
+    const GAP = 8, ARROW = 6;
+    // 某元素相对 canvas 的矩形
+    const rectOf = (el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.left - cb.left, y: r.top - cb.top, w: r.width, h: r.height,
+               cx: r.left - cb.left + r.width / 2, cy: r.top - cb.top + r.height / 2 };
+    };
+    const addPath = (d, dashed) => {
+      const p = document.createElementNS(SVGNS, 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('stroke-linecap', 'round');
+      p.setAttribute('stroke-linejoin', 'round');
+      if (dashed) p.setAttribute('class', 'dashed');
+      overlay.appendChild(p);
+      return p;
+    };
+    const addArrow = (x, y, dir) => {
+      // dir: 'r'|'l'|'d'|'u' —— 箭头尖指向的方向
+      let d;
+      if (dir === 'r') d = `M ${x-ARROW} ${y-4} L ${x} ${y} L ${x-ARROW} ${y+4}`;
+      else if (dir === 'l') d = `M ${x+ARROW} ${y-4} L ${x} ${y} L ${x+ARROW} ${y+4}`;
+      else if (dir === 'd') d = `M ${x-4} ${y-ARROW} L ${x} ${y} L ${x+4} ${y-ARROW}`;
+      else d = `M ${x-4} ${y+ARROW} L ${x} ${y} L ${x+4} ${y+ARROW}`;
+      addPath(d);
+    };
+
+    defs.forEach(def => {
+      const from = document.getElementById(def.dataset.from || '');
+      const to = document.getElementById(def.dataset.to || '');
+      if (!from || !to) return;
+      const a = rectOf(from), b = rectOf(to);
+      const dashed = def.dataset.dash === '1';
+      const side = def.dataset.side || 'auto';
+
+      // 选择出/入边：auto 时按相对位置决定（目标在右→源右出/目标左入，反之亦然；
+      // 若主要是上下关系则走 top/bottom）。
+      let mode = side;
+      if (mode === 'auto') {
+        const dx = b.cx - a.cx, dy = b.cy - a.cy;
+        if (Math.abs(dx) >= Math.abs(dy)) mode = dx >= 0 ? 'right' : 'left';
+        else mode = dy >= 0 ? 'bottom' : 'top';
+      }
+
+      let sx, sy, tx, ty, midpts, arrowDir;
+      if (mode === 'right' || mode === 'left') {
+        const goRight = mode === 'right';
+        sx = goRight ? a.x + a.w + GAP : a.x - GAP;
+        sy = a.cy;
+        tx = goRight ? b.x - GAP : b.x + b.w + GAP;
+        ty = b.cy;
+        const mx = (sx + tx) / 2;             // 折线中段 x（两页之间）
+        addPath(`M ${sx} ${sy} H ${mx} V ${ty} H ${tx}`, dashed);
+        arrowDir = goRight ? 'r' : 'l';
+        // tag 锚在源侧水平段（紧贴出发页，距源边 1/4 处），多条汇聚也不会在目标处叠字
+        midpts = { x: sx + (mx - sx) * 0.5, y: sy - 9 };
+      } else {
+        const goDown = mode === 'bottom';
+        sx = a.cx;
+        sy = goDown ? a.y + a.h + GAP : a.y - GAP;
+        tx = b.cx;
+        ty = goDown ? b.y - GAP : b.y + b.h + GAP;
+        const my = (sy + ty) / 2;
+        addPath(`M ${sx} ${sy} V ${my} H ${tx} V ${ty}`, dashed);
+        arrowDir = goDown ? 'd' : 'u';
+        midpts = { x: (sx + tx) / 2, y: my };
+      }
+      addArrow(tx, ty, arrowDir);
+
+      if (def.dataset.tag) {
+        const tag = document.createElement('div');
+        tag.className = 'xlink-tag';
+        tag.textContent = def.dataset.tag;
+        tag.style.left = midpts.x + 'px';
+        tag.style.top = midpts.y + 'px';
+        canvas.appendChild(tag);
+      }
+    });
+  }
+
   // 布局稳定后绘制；窗口缩放、字体/图标加载后重绘
-  function scheduleDrawForks() { requestAnimationFrame(() => requestAnimationFrame(drawForks)); }
+  function scheduleDrawForks() { requestAnimationFrame(() => requestAnimationFrame(() => { drawForks(); drawXlinks(); })); }
   window.addEventListener('resize', scheduleDrawForks);
   window.addEventListener('load', scheduleDrawForks);
+
+  // ---------- 图标急救：检测图标库是否加载失败，失败则浮现求助入口 ----------
+  // 原理：Lucide 成功时会把 <i data-lucide> 全部替换成 <svg>；若失败，<i> 会残留，
+  // 或 window.lucide 根本不存在。任一成立即判定“图标坏了”，显示右下角问号。
+  function checkIconsBroken() {
+    const leftover = document.querySelector('.screen i[data-lucide]');   // 仍残留未渲染的占位
+    const broken = !window.lucide || !!leftover;
+    document.body.classList.toggle('icons-broken', broken);
+    return broken;
+  }
+  // 加载后给 CDN 一点渲染时间，再判定（多次复查，覆盖慢网下姗姗来迟的情况）
+  window.addEventListener('load', () => {
+    checkIconsBroken();
+    setTimeout(checkIconsBroken, 1200);
+    setTimeout(checkIconsBroken, 4000);
+  });
+
+  // 点击问号：复制一段口语化修复指令到剪贴板
+  const SOS_TEXT =
+    '我这个原型页面的图标没有正常显示出来（它们依赖的在线图标库没加载出来）。' +
+    '请把这个 HTML 文件里的图标改成内联 SVG 的方式：找到所有带 data-lucide="名字" 的元素，' +
+    '用对应的 Lucide 官方 SVG 把它们替换掉，并删除 lucide 的 CDN <script> 和 createIcons() 调用。' +
+    '改完之后请保证它仍然是一个可以离线打开的单文件 HTML，图标永远不会再加载失败。';
+  const sosBtn = document.getElementById('iconSosBtn');
+  if (sosBtn) {
+    sosBtn.addEventListener('click', () => {
+      const done = () => {
+        const prev = sosBtn.textContent;
+        sosBtn.textContent = '✓';
+        sosBtn.style.color = 'var(--ink)';
+        setTimeout(() => { sosBtn.textContent = prev; sosBtn.style.color = ''; }, 1600);
+        alert('已复制一段修复说明到剪贴板，粘贴到与 AI 的对话框发送即可，AI 会把图标改成内联、永久修复。');
+      };
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(SOS_TEXT).then(done).catch(() => { window.prompt('请手动复制下面这段话发给 AI：', SOS_TEXT); });
+      } else {
+        window.prompt('请手动复制下面这段话发给 AI：', SOS_TEXT);
+      }
+    });
+  }
 
   // ---------- 初始化 ----------
   save();
