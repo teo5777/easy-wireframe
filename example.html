@@ -626,13 +626,37 @@
     background: var(--white);
     padding: 12px 16px 16px;
     display: flex;
+    align-items: center;   /* 横排时按钮等高居中，避免被拉伸变形 */
     gap: 10px;
   }
+  /* A4-1. 纵向 CTA：按钮各占一行、上下堆叠（两个并排会太挤、或主次分明时用）。
+     列方向 + stretch 让每个 .btn 通栏等宽；.btn 的 min-height 保证不被压矮。 */
+  .cta-bar.stack {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  /* A4-2. 辅助小字：放在按钮上方或下方的一行弱化说明 / 次要文字链接，整组仍纵向协调。
+     用在「一个主按钮 + 一行小字」这种底部结构里，小字不抢视觉、与按钮间距匀称。 */
+  .cta-hint {
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--muted);
+    letter-spacing: 0.2px;
+  }
+  .cta-hint .link { color: var(--ink); font-weight: 600; }   /* 小字里的可点文字（如「去登录」） */
 
   /* ===== 通用按钮（CTA / 卡片内 / 表单皆可用） ===== */
+  /* min-height + flex-shrink:0：按钮高度恒为 48，绝不被父级 flex 压扁。
+     （关键：放进纵向 flex 容器时，单写 height 会被当作可收缩的 flex-basis 压矮——
+      故必须用 min-height 兜底，这是「底部按钮被压成矮条」的根治。） */
   .btn {
     flex: 1;
     height: 48px;
+    min-height: 48px;
+    flex-shrink: 0;
     border-radius: 14px;
     display: flex;
     align-items: center;
@@ -648,7 +672,7 @@
   .btn.ghost { background: var(--fill); color: var(--ink); }
   .btn.outline { background: var(--white); color: var(--ink); border: 1px solid var(--hairline); }
   /* 小尺寸按钮（卡片内 / 行内用） */
-  .btn.sm { height: 36px; border-radius: 10px; font-size: 14px; flex: 0 0 auto; padding: 0 16px; }
+  .btn.sm { height: 36px; min-height: 36px; border-radius: 10px; font-size: 14px; flex: 0 0 auto; padding: 0 16px; }
 
   /* ===== B. 内容容器 ===== */
 
@@ -2044,7 +2068,7 @@
   </div>
 
   <!-- 跨页汇聚连线：搜索结果(⑨)的商品卡，可点进 ④商品详情（与商品列表→商品详情形成汇聚） -->
-  <div class="xlink" data-from="search-result" data-to="pdp" data-tag="点击商品 → 商品详情" data-side="top" data-dash="1"></div>
+  <div class="xlink" data-from="search-result" data-to="pdp" data-tag="点击商品 → 商品详情" data-side="auto" data-dash="1"></div>
 
   </div><!-- /.canvas -->
   </div><!-- /.zoom-stage -->
@@ -2562,6 +2586,20 @@
       else d = `M ${x-4} ${y+ARROW} L ${x} ${y} L ${x+4} ${y+ARROW}`;
       addPath(d);
     };
+    const addTag = (x, y, text) => {
+      const tag = document.createElement('div');
+      tag.className = 'xlink-tag';
+      tag.textContent = text;
+      tag.style.left = x + 'px';
+      tag.style.top = y + 'px';
+      canvas.appendChild(tag);
+    };
+
+    // 所有页面卡片矩形 —— 用于「绕场外走线」的避让判定（夹页就别从中间穿，绕到相关页面外侧走）。
+    const screens = Array.from(canvas.querySelectorAll('.screen')).map(rectOf);
+    // 绕行通道：第一条距相关页面边缘 LANE_GAP，多条再各退 LANE_STEP，彼此不重叠
+    const LANE_GAP = 28, LANE_STEP = 16;
+    let laneUnder = 0, laneOver = 0;
 
     defs.forEach(def => {
       const from = document.getElementById(def.dataset.from || '');
@@ -2570,6 +2608,7 @@
       const a = rectOf(from), b = rectOf(to);
       const dashed = def.dataset.dash === '1';
       const side = def.dataset.side || 'auto';
+      const route = def.dataset.route || 'auto';   // over|under|auto —— 绕带外的方向
 
       // 选择出/入边：auto 时按相对位置决定（目标在右→源右出/目标左入，反之亦然；
       // 若主要是上下关系则走 top/bottom）。
@@ -2579,9 +2618,45 @@
         if (Math.abs(dx) >= Math.abs(dy)) mode = dx >= 0 ? 'right' : 'left';
         else mode = dy >= 0 ? 'bottom' : 'top';
       }
+      const horizontal = (mode === 'right' || mode === 'left');
 
+      // 端点水平/垂直范围
+      const lo = Math.min(a.cx, b.cx), hi = Math.max(a.cx, b.cx);
+      const rowTop = Math.min(a.y, b.y), rowBot = Math.max(a.y + a.h, b.y + b.h);
+      // 「相关页面」= 水平夹在两端点之间、且与源/目标纵向有重叠的卡片（即同一行挡路的页）。
+      // 只针对这些页避让，绕行高度按它们(连同两端点)局部计算，绝不牵连其它行。
+      const between = screens.filter(s =>
+        s.cx > lo + 1 && s.cx < hi - 1 &&
+        Math.abs(s.cx - a.cx) > 1 && Math.abs(s.cx - b.cx) > 1 &&
+        s.y < rowBot && s.y + s.h > rowTop);
+      const blocked = between.length > 0;
+
+      // ===== 门型「绕场外」走线 =====
+      // 水平跨页且中间夹页（或作者用 data-route 强制）时，不从两页之间穿，而是从源页顶/底边
+      // 出发，垂直到这一带页面外侧的一条水平通道，横贯到目标页，再垂直插入。全程恰好两个直角、
+      // 中段是带外直线——绝不压任何页面，方向清晰、弯折最少。绕行高度只看局部相关页，不穿别的行。
+      const forced = route === 'over' || route === 'under';
+      if (horizontal && (blocked || forced)) {
+        const group = between.concat([a, b]);
+        const gTop = Math.min(...group.map(s => s.y));
+        const gBot = Math.max(...group.map(s => s.y + s.h));
+        // auto 默认绕「下方」：底部无 stage-label 编号，观感更干净
+        const goUnder = route === 'over' ? false : true;
+        const laneY = goUnder
+          ? gBot + LANE_GAP + (laneUnder++) * LANE_STEP
+          : gTop - LANE_GAP - (laneOver++) * LANE_STEP;
+        const sx = a.cx, tx = b.cx;
+        const sy = goUnder ? a.y + a.h + GAP : a.y - GAP;   // 源页底/顶边中点出发
+        const ty = goUnder ? b.y + b.h + GAP : b.y - GAP;   // 目标页底/顶边中点进入
+        addPath(`M ${sx} ${sy} V ${laneY} H ${tx} V ${ty}`, dashed);
+        addArrow(tx, ty, goUnder ? 'u' : 'd');
+        if (def.dataset.tag) addTag((sx + tx) / 2, laneY + (goUnder ? 11 : -11), def.dataset.tag);
+        return;
+      }
+
+      // ===== 相邻 / 短距：保持原紧凑正交折线 =====
       let sx, sy, tx, ty, midpts, arrowDir;
-      if (mode === 'right' || mode === 'left') {
+      if (horizontal) {
         const goRight = mode === 'right';
         sx = goRight ? a.x + a.w + GAP : a.x - GAP;
         sy = a.cy;
@@ -2604,15 +2679,7 @@
         midpts = { x: (sx + tx) / 2, y: my };
       }
       addArrow(tx, ty, arrowDir);
-
-      if (def.dataset.tag) {
-        const tag = document.createElement('div');
-        tag.className = 'xlink-tag';
-        tag.textContent = def.dataset.tag;
-        tag.style.left = midpts.x + 'px';
-        tag.style.top = midpts.y + 'px';
-        canvas.appendChild(tag);
-      }
+      if (def.dataset.tag) addTag(midpts.x, midpts.y, def.dataset.tag);
     });
   }
 

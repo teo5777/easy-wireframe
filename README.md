@@ -33,10 +33,26 @@ npx skills add https://github.com/teo5777/easy-wireframe --skill easy-wireframe
 帮我安装 easy-wireframe。请把 https://github.com/teo5777/easy-wireframe 克隆到 ~/.claude/skills/easy-wireframe，安装完成后检查 SKILL.md、design-system.md、components.md、template.html、example.html 是否存在。
 ```
 
-已经安装过的话，用这段话更新：
+已经安装过的话，**按你当初的安装方式**更新：
+
+```bash
+# ① 用上面的 npx skills 装的 —— 直接用 CLI 更新（推荐）
+npx skills update easy-wireframe
+# 更新全部已装 skill：npx skills update（别名 npx skills upgrade）
+```
+
+```bash
+# ② 手动 git clone 到本地 skills 目录装的 —— 进入你 clone 的目录 git pull
+cd <你当初 clone 的目录>   # 例如 ~/.claude/skills/easy-wireframe
+git pull
+```
+
+> 注意：`npx skills add` 装出来的副本由 `skills` CLI 托管（通常在 `~/.agents/skills/` 并软链接给各 Agent），**不是你的 git 工作区**，对它执行 `git pull` 不会生效——这种情况一律用 `npx skills update`。
+
+或者把这段话发给有 shell 权限的 AI Agent，让它替你更新：
 
 ```text
-帮我更新 easy-wireframe。请进入 ~/.claude/skills/easy-wireframe 执行 git pull，然后告诉我当前最新 commit。
+帮我更新 easy-wireframe skill。优先执行 npx skills update easy-wireframe；如果它不是用 skills CLI 装的、而是手动 git clone 的，就进入该 clone 目录执行 git pull。完成后告诉我当前最新 commit。
 ```
 
 安装后直接对 Agent 说：

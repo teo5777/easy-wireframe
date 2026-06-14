@@ -59,6 +59,8 @@ Feed 动态、表单、筛选胶囊、时间线、空状态）——它们同样
    「搜索结果」都进入同一个「商品详情」）时——给目标页 `.screen` 加 `id`，再放
    `<div class="xlink" data-from="源id" data-to="目标id" data-tag="…" data-side="auto" data-dash="1">`，
    由 `drawXlinks()` 自动画跨页折线。多条 `xlink` 指向同一 `id` 即实现「汇聚到一个页面框」。
+   **`data-side` 保持 `auto` 即可**：中间夹着其它页面时连线会自动绕到页面外侧走（绕场外、不压页），
+   不需要手动改 side 去硬绕；只有想精确控制绕上还是绕下时，才加 `data-route="over|under"`。
 
 详见 `components.md` 第 0.5（含 0.5.1 嵌套）与 0.6（xlink）节。
 
@@ -91,7 +93,7 @@ Feed 动态、表单、筛选胶囊、时间线、空状态）——它们同样
 - **画布缩放**：右上角工具栏的 `−` / 百分比 / `＋` / 「适应屏幕」可整体缩放流程图查看；也支持 `Ctrl/⌘ + 滚轮`、Mac 触控板双指捏合（以光标为中心缩放），百分比点击复位 100%。缩放用 `transform: scale()` 作用于 `.canvas`、`.zoom-stage` 撑滚动尺寸；连线绘制前总会临时把 transform 设回 `none` 在 1:1 坐标系下测量再恢复，故**任意缩放下分支/跨页连线与图钉都不错位**，截图也始终导出 1:1 全分辨率。wheel 缩放按 `|deltaY|<50` 区分触控板捏合 / 鼠标滚轮，分别用不同灵敏度系数（捏合更跟手、滚轮钳住单格跳变），手感更稳。
 - **空格拖动画布**：类 Figma 交互——按住 `空格` 给 `body` 加 `.space-pan`（抓手光标），鼠标在捕获阶段按下拖动 = `window.scrollBy` 反向滚动视口平移；`keyup`/`blur` 复位。在 `input/textarea/select`/contentEditable 内不抢空格，平移时 `onScreenClick` 守卫 `spaceDown||panning` 不落图钉。
 - **分支连线**：`drawForks()` 为每个 `.flow.branched` 按真实 DOM 坐标绘制分叉折线+箭头+标注（含嵌套子分叉），`resize` 时自动重绘。
-- **跨页连线**：`drawXlinks()` 为每个 `.xlink` 声明在 `.canvas` 级 overlay 上绘制跨页折线+箭头+标注，支持多条汇聚到同一页框，与分支连线共存、`resize` 自动重绘。
+- **跨页连线（自动避让）**：`drawXlinks()` 为每个 `.xlink` 在 `.canvas` 级 overlay 绘制跨页折线+箭头+标注，支持多条汇聚到同一页框。**水平跨页且中间夹着其它页面时，连线自动「绕场外」**——从源页底边垂直到相关页面下沿外的水平通道、直线横贯、再垂直插入目标页，只两个直角、中段直线、绝不压页，多条自动分 lane 错开；`data-route=auto|over|under` 可控绕上/绕下，绕行高度只按局部相关页算、不牵连其它行。与分支连线共存、`resize` 自动重绘。
 - **存储按文件隔离**：标注、标题/副标题缓存的 localStorage key 以文件名为命名空间（`prototype:<文件名>:…`），
   因此**每个新生成的原型都是干净的初始状态**，不会串用上一个页面的标注或标题。
 - **图标急救安全网**：图标走 Lucide CDN，网络异常时可能加载不出（空白）。模板内置检测——

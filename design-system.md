@@ -170,7 +170,7 @@
 **三种连接关系**（详见 `components.md`）：
 - **顺序** `.arrow`：相邻两页（本节）。
 - **发散分支** `.flow.branched` + `.fork` + `.branch[data-tag]`：一页分多路，连线由 `drawForks()` 画；支持嵌套（子分支首页设为新 `origin`）。
-- **跨页/汇聚** `.xlink`：`<div class="xlink" data-from data-to data-tag data-side data-dash>`，由 `drawXlinks()` 在 `.canvas` 级 overlay 画正交折线；多条指向同一 `id` 即汇聚。线条用 `--line`，虚线 `data-dash="1"`，tag 文字垫 `--bg` 底色保证压住穿过的线可读。`.canvas` 已设 `position:relative` 作为其定位上下文。
+- **跨页/汇聚** `.xlink`：`<div class="xlink" data-from data-to data-tag data-side data-route data-dash>`，由 `drawXlinks()` 在 `.canvas` 级 overlay 画正交折线；多条指向同一 `id` 即汇聚。线条用 `--line`，虚线 `data-dash="1"`，tag 文字垫 `--bg` 底色保证压住穿过的线可读。`.canvas` 已设 `position:relative` 作为其定位上下文。**水平跨页且中间夹页时自动「绕场外」**：从源页底边垂直到相关页面下沿外的水平通道、横贯后再垂直插入目标页（只两个直角、中段直线、不压页、多条自动分 lane 错开）；`data-route=auto|over|under` 控制绕上/绕下，绕行高度只按局部相关页计算、不牵连其它行。
 
 ---
 
@@ -187,8 +187,8 @@
 | 底部 Tab Bar | `.tabbar` / `.tab` / `.tab.active` | 内距 `8 6 10`；图标 24；标签 11px | active 用 `--ink`，未选 `--muted`；顶部 `1px --line-soft` |
 | 搜索栏 | `.searchbar` | 外距 `12 16`，高 40，圆角 12，图标 18 | 底 `--fill`，占位文字 15px `--muted` |
 | 分段控制器 | `.segment` / `.seg` / `.seg.active` | 轨道圆角 10，内距 3，段内距 `7 0` | 轨道 `--fill`；选中段白底 + `--ink` 600 |
-| 底部 CTA 栏 | `.cta-bar` | 内距 `12 16 16`，顶部发丝线 | 容器白底；按钮见下 |
-| 通用按钮 | `.btn` `.btn.primary/.ghost/.outline` `.btn.sm` | 高 48 圆角 14（sm：36/10）；17px 600 | primary 实心 `--ink`；ghost `--fill`；outline 白底 + 发丝边 |
+| 底部 CTA 栏 | `.cta-bar` / `.cta-bar.stack` / `.cta-hint` | 内距 `12 16 16`，顶部发丝线；横排 gap 10；`.stack` 列向通栏；`.cta-hint` 13px 居中弱化小字 | 容器白底；按钮见下；小字 `--muted`、`.link` 提为 `--ink` |
+| 通用按钮 | `.btn` `.btn.primary/.ghost/.outline` `.btn.sm` | 高 48（`min-height:48` + `flex-shrink:0` 防压矮）圆角 14（sm：36/10）；17px 600 | primary 实心 `--ink`；ghost `--fill`；outline 白底 + 发丝边 |
 
 ### B. 内容容器
 
