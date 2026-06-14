@@ -234,6 +234,7 @@
     border: 1px solid var(--hairline);
     border-radius: 30px;
     overflow: hidden;        /* 仅护住圆角；高度由 min-height 决定，内容多时整体长高、不裁切 */
+    position: relative;      /* 浮层(.sheet-mask)与标注图钉的定位上下文 */
     display: flex;
     flex-direction: column;
     box-shadow:
@@ -1108,6 +1109,171 @@
   .donut-legend .lg-dot.soft { background: var(--line); }
   .donut-legend .lg-dot.faint { background: var(--fill-2); }
   .donut-legend .lg-val { margin-left: auto; color: var(--muted); }
+
+  /* ===== J. 浮层 / 覆盖层（弹窗 / 半屏弹层 / 操作菜单 / Toast）=====
+     全部相对单个 .screen 绝对定位（.screen 已 position:relative + overflow:hidden），
+     表示「这一页弹出了浮层」，并被手机屏圆角自然裁切。只复用既有 9 个颜色变量与 HIG 字号。
+     遮罩底用 --ink 的低透明度，与标注遮罩同款，不引入新色。
+     ⚠ 浮层作为 .screen 的子节点放在内容之后；它脱离文档流，不影响页面原有高度。 */
+
+  /* J0. 遮罩底：铺满所在 .screen，承托其内的浮层。
+     .center 居中放 .dialog；.bottom 贴底放 .sheet / .action-sheet。 */
+  .sheet-mask {
+    position: absolute;
+    inset: 0;
+    background: rgba(33, 37, 41, 0.32);
+    z-index: 40;
+    display: flex;
+    overflow: hidden;
+  }
+  .sheet-mask.center { align-items: center; justify-content: center; padding: 0 28px; }
+  .sheet-mask.bottom { align-items: flex-end; }
+
+  /* J1. 居中对话框 .dialog：确认 / 删除 / 提示。可选顶部图标圈。 */
+  .dialog {
+    width: 100%;
+    background: var(--white);
+    border-radius: 18px;
+    padding: 22px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    box-shadow: 0 12px 32px rgba(33,37,41,0.18);
+  }
+  .dialog .dlg-ic {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: var(--fill);
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  .dialog .dlg-ic [data-lucide] { width: 26px; height: 26px; }
+  .dialog .dlg-ic.danger { background: var(--anno-danger-soft); }
+  .dialog .dlg-ic.danger [data-lucide] { color: var(--anno-danger); }
+  .dialog .dlg-title { font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: 0.2px; }
+  .dialog .dlg-text { font-size: 14px; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+  /* 按钮组：默认上下堆叠（主操作在上）；加 .row 变左右并排 */
+  .dialog .dlg-actions {
+    width: 100%;
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .dialog .dlg-actions.row { flex-direction: row; }
+  /* 对话框里的危险确认按钮（复用 .btn 的尺寸） */
+  .dialog .btn.danger { background: var(--anno-danger); color: var(--white); }
+
+  /* J2. 底部半屏弹层 .sheet：选规格 / 筛选 / 详情。顶部抓手 + 标题，内容随意。 */
+  .sheet {
+    width: 100%;
+    background: var(--white);
+    border-radius: 22px 22px 0 0;
+    padding-bottom: 8px;
+    max-height: 78%;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -8px 28px rgba(33,37,41,0.14);
+  }
+  .sheet .sheet-grip {
+    width: 38px; height: 5px;
+    border-radius: 3px;
+    background: var(--line-soft);
+    margin: 10px auto 4px;
+    flex-shrink: 0;
+  }
+  .sheet .sheet-hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 20px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    flex-shrink: 0;
+  }
+  .sheet .sheet-hd .sh-title { font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: 0.2px; }
+  .sheet .sheet-hd .sh-close {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--fill);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .sheet .sheet-hd .sh-close [data-lucide] { width: 16px; height: 16px; }
+  /* 弹层主体：放任意组件（.form-field / .chips / .list-item / .product-grid …） */
+  .sheet .sheet-bd { padding: 6px 0 4px; }
+  /* 弹层贴底操作区（如「确定」）；与 .cta-bar 同款留白 */
+  .sheet .sheet-foot { padding: 12px 16px 16px; flex-shrink: 0; display: flex; gap: 10px; }
+
+  /* J3. iOS 操作菜单 .action-sheet：成组操作项 + 独立「取消」组。 */
+  .action-sheet {
+    width: 100%;
+    padding: 0 8px 8px;
+  }
+  .action-sheet .as-group {
+    background: var(--white);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  /* 顶部可选说明条 */
+  .action-sheet .as-cap {
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.4;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .action-sheet .as-item {
+    text-align: center;
+    font-size: 17px;
+    color: var(--ink);
+    padding: 15px 12px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .action-sheet .as-item:last-child { border-bottom: none; }
+  .action-sheet .as-item.danger { color: var(--anno-danger); }
+  .action-sheet .as-item.strong { font-weight: 600; }
+  /* 独立「取消」组：墨色加粗，与上面拉开间距 */
+  .action-sheet .as-cancel {
+    background: var(--white);
+    border-radius: 14px;
+    text-align: center;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+    padding: 15px 12px;
+  }
+
+  /* J4. Toast 轻提示：屏内浮一条短反馈，不带遮罩。.top 顶部 / 默认居中偏下。 */
+  .toast {
+    position: absolute;
+    left: 50%;
+    bottom: 64px;
+    transform: translateX(-50%);
+    z-index: 45;
+    max-width: 80%;
+    background: rgba(33, 37, 41, 0.92);
+    color: var(--white);
+    font-size: 14px;
+    line-height: 1.4;
+    border-radius: 12px;
+    padding: 11px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 6px 18px rgba(33,37,41,0.22);
+    white-space: nowrap;
+  }
+  .toast.top { top: 72px; bottom: auto; }
+  .toast [data-lucide] { width: 17px; height: 17px; color: var(--white); flex-shrink: 0; }
 
   /* 流程内的列（页面 / 箭头）一律不压缩，保持原尺寸横向排开 */
   .stage, .arrow { flex-shrink: 0; }
@@ -1986,11 +2152,48 @@
       canvas.appendChild(tag);
     };
 
-    // 所有页面卡片矩形 —— 用于「绕场外走线」的避让判定（夹页就别从中间穿，绕到相关页面外侧走）。
+    // ===== 障碍物正交布线器（A* / Dijkstra）=====
+    // 把每个页面当成「障碍矩形」（向外扩 MARGIN 留白），连线只在页面之间的空隙里走正交折线。
+    // 源页与目标页各开「上/下/左/右」四个端口，由最短路算法自动挑「路程短 + 拐弯少 + 不压页」的
+    // 进出方向与路径——这正是「按目标四个方向盘点哪个最近、且保证不压页」。任意布局（规整网格 /
+    // 嵌套分支的不规则摆放）都不会压页；多条汇聚到同一页的线天然走不同端口与通道，互不重叠。
+    const MARGIN = 16;     // 障碍外扩留白：连线与页面之间至少留这么宽（也是走线通道的半宽依据）
+    const TURN = 60;       // 每个直角拐弯的惩罚（与像素同量纲）——越大越偏好笔直、少弯折
+    const EPS = 0.5;
     const screens = Array.from(canvas.querySelectorAll('.screen')).map(rectOf);
-    // 绕行通道：第一条距相关页面边缘 LANE_GAP，多条再各退 LANE_STEP，彼此不重叠
-    const LANE_GAP = 28, LANE_STEP = 16;
-    let laneUnder = 0, laneOver = 0;
+    const obstacles = screens.map(s => ({ x1: s.x - MARGIN, y1: s.y - MARGIN, x2: s.x + s.w + MARGIN, y2: s.y + s.h + MARGIN }));
+    const idxOf = (r) => screens.findIndex(s => s.x === r.x && s.y === r.y);
+
+    // 一条正交线段是否穿过某障碍「内部」（边界相切不算，故相邻通道可贴边走）
+    function segHitsAny(ax, ay, bx, by, skipIdx) {
+      for (let i = 0; i < obstacles.length; i++) {
+        if (i === skipIdx) continue;
+        const o = obstacles[i];
+        if (ax === bx) {                       // 垂直段
+          if (ax > o.x1 + EPS && ax < o.x2 - EPS) {
+            const lo = Math.min(ay, by), hi = Math.max(ay, by);
+            if (lo < o.y2 - EPS && hi > o.y1 + EPS) return true;
+          }
+        } else {                               // 水平段
+          if (ay > o.y1 + EPS && ay < o.y2 - EPS) {
+            const lo = Math.min(ax, bx), hi = Math.max(ax, bx);
+            if (lo < o.x2 - EPS && hi > o.x1 + EPS) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // 给一个页面矩形生成四个端口：anchor=贴页边(箭头落点)，px/py=外扩留白外缘(进网格的点)，
+    // dir=离开/进入页面的轴向，arrow=从该端口进入页面时箭头指向。
+    function portsOf(r) {
+      return [
+        { side:'l', ax:r.x - GAP,        ay:r.cy, px:r.x - MARGIN,        py:r.cy, dir:'h', arrow:'r' },
+        { side:'r', ax:r.x + r.w + GAP,  ay:r.cy, px:r.x + r.w + MARGIN,  py:r.cy, dir:'h', arrow:'l' },
+        { side:'t', ax:r.cx, ay:r.y - GAP,         px:r.cx, py:r.y - MARGIN,         dir:'v', arrow:'d' },
+        { side:'b', ax:r.cx, ay:r.y + r.h + GAP,   px:r.cx, py:r.y + r.h + MARGIN,   dir:'v', arrow:'u' },
+      ];
+    }
 
     defs.forEach(def => {
       const from = document.getElementById(def.dataset.from || '');
@@ -1998,79 +2201,117 @@
       if (!from || !to) return;
       const a = rectOf(from), b = rectOf(to);
       const dashed = def.dataset.dash === '1';
+      const ai = idxOf(a), bi = idxOf(b);
       const side = def.dataset.side || 'auto';
-      const route = def.dataset.route || 'auto';   // over|under|auto —— 绕带外的方向
 
-      // 选择出/入边：auto 时按相对位置决定（目标在右→源右出/目标左入，反之亦然；
-      // 若主要是上下关系则走 top/bottom）。
-      let mode = side;
-      if (mode === 'auto') {
-        const dx = b.cx - a.cx, dy = b.cy - a.cy;
-        if (Math.abs(dx) >= Math.abs(dy)) mode = dx >= 0 ? 'right' : 'left';
-        else mode = dy >= 0 ? 'bottom' : 'top';
-      }
-      const horizontal = (mode === 'right' || mode === 'left');
-
-      // 端点水平/垂直范围
-      const lo = Math.min(a.cx, b.cx), hi = Math.max(a.cx, b.cx);
-      const rowTop = Math.min(a.y, b.y), rowBot = Math.max(a.y + a.h, b.y + b.h);
-      // 「相关页面」= 水平夹在两端点之间、且与源/目标纵向有重叠的卡片（即同一行挡路的页）。
-      // 只针对这些页避让，绕行高度按它们(连同两端点)局部计算，绝不牵连其它行。
-      const between = screens.filter(s =>
-        s.cx > lo + 1 && s.cx < hi - 1 &&
-        Math.abs(s.cx - a.cx) > 1 && Math.abs(s.cx - b.cx) > 1 &&
-        s.y < rowBot && s.y + s.h > rowTop);
-      const blocked = between.length > 0;
-
-      // ===== 门型「绕场外」走线 =====
-      // 水平跨页且中间夹页（或作者用 data-route 强制）时，不从两页之间穿，而是从源页顶/底边
-      // 出发，垂直到这一带页面外侧的一条水平通道，横贯到目标页，再垂直插入。全程恰好两个直角、
-      // 中段是带外直线——绝不压任何页面，方向清晰、弯折最少。绕行高度只看局部相关页，不穿别的行。
-      const forced = route === 'over' || route === 'under';
-      if (horizontal && (blocked || forced)) {
-        const group = between.concat([a, b]);
-        const gTop = Math.min(...group.map(s => s.y));
-        const gBot = Math.max(...group.map(s => s.y + s.h));
-        // auto 默认绕「下方」：底部无 stage-label 编号，观感更干净
-        const goUnder = route === 'over' ? false : true;
-        const laneY = goUnder
-          ? gBot + LANE_GAP + (laneUnder++) * LANE_STEP
-          : gTop - LANE_GAP - (laneOver++) * LANE_STEP;
-        const sx = a.cx, tx = b.cx;
-        const sy = goUnder ? a.y + a.h + GAP : a.y - GAP;   // 源页底/顶边中点出发
-        const ty = goUnder ? b.y + b.h + GAP : b.y - GAP;   // 目标页底/顶边中点进入
-        addPath(`M ${sx} ${sy} V ${laneY} H ${tx} V ${ty}`, dashed);
-        addArrow(tx, ty, goUnder ? 'u' : 'd');
-        if (def.dataset.tag) addTag((sx + tx) / 2, laneY + (goUnder ? 11 : -11), def.dataset.tag);
-        return;
+      let srcPorts = portsOf(a);
+      let dstPorts = portsOf(b);
+      // data-side 显式约束目标进入边（auto 时四向全开，由算法自选）
+      if (side !== 'auto') {
+        const map = { left:'l', right:'r', top:'t', bottom:'b' };
+        if (map[side]) dstPorts = dstPorts.filter(p => p.side === map[side]);
       }
 
-      // ===== 相邻 / 短距：保持原紧凑正交折线 =====
-      let sx, sy, tx, ty, midpts, arrowDir;
-      if (horizontal) {
-        const goRight = mode === 'right';
-        sx = goRight ? a.x + a.w + GAP : a.x - GAP;
-        sy = a.cy;
-        tx = goRight ? b.x - GAP : b.x + b.w + GAP;
-        ty = b.cy;
-        const mx = (sx + tx) / 2;             // 折线中段 x（两页之间）
-        addPath(`M ${sx} ${sy} H ${mx} V ${ty} H ${tx}`, dashed);
-        arrowDir = goRight ? 'r' : 'l';
-        // tag 锚在源侧水平段（紧贴出发页，距源边 1/4 处），多条汇聚也不会在目标处叠字
-        midpts = { x: sx + (mx - sx) * 0.5, y: sy - 9 };
+      // 候选正交网格线 = 所有障碍的四条边 + 本条两端端口的坐标（端点必落在格点上）
+      const xsS = new Set(), ysS = new Set();
+      obstacles.forEach(o => { xsS.add(o.x1); xsS.add(o.x2); ysS.add(o.y1); ysS.add(o.y2); });
+      srcPorts.concat(dstPorts).forEach(p => { xsS.add(p.px); ysS.add(p.py); });
+      const xs = Array.from(xsS).sort((u,v)=>u-v);
+      const ys = Array.from(ysS).sort((u,v)=>u-v);
+      const xi = new Map(xs.map((v,i)=>[v,i])), yi = new Map(ys.map((v,i)=>[v,i]));
+      const nx = xs.length, ny = ys.length;
+      const nodeId = (i,j) => i*ny + j;
+      const stateKey = (id,dir) => id + ':' + dir;
+
+      // Dijkstra（带拐弯惩罚）：多源（源页可用端口）→ 多目标（目标页端口任一）。
+      const g = new Map();        // stateKey -> 最小代价
+      const prev = new Map();     // stateKey -> 前驱 stateKey（起点无）
+      const startPort = new Map();// 起点 stateKey -> 源端口
+      const goalNode = new Map(); // 目标端口落点 nodeId -> 目标端口
+      dstPorts.forEach(p => { if (xi.has(p.px) && yi.has(p.py)) goalNode.set(nodeId(xi.get(p.px), yi.get(p.py)), p); });
+
+      const open = [];
+      srcPorts.forEach(p => {
+        if (!xi.has(p.px) || !yi.has(p.py)) return;
+        if (segHitsAny(p.ax, p.ay, p.px, p.py, ai)) return;   // 源 stub 不能压别的页
+        const id = nodeId(xi.get(p.px), yi.get(p.py));
+        const k = stateKey(id, p.dir);
+        g.set(k, 0); startPort.set(k, p);
+        open.push({ id, dir:p.dir, cost:0 });
+      });
+
+      let goalK = null, goalPort = null;
+      while (open.length) {
+        let bi2 = 0;
+        for (let t = 1; t < open.length; t++) if (open[t].cost < open[bi2].cost) bi2 = t;
+        const cur = open.splice(bi2, 1)[0];
+        const ck = stateKey(cur.id, cur.dir);
+        if (cur.cost > (g.get(ck) ?? Infinity)) continue;
+        if (goalNode.has(cur.id)) { goalK = ck; goalPort = goalNode.get(cur.id); break; }
+        const ci = Math.floor(cur.id / ny), cj = cur.id % ny;
+        const cx0 = xs[ci], cy0 = ys[cj];
+        const nb = [];
+        if (ci > 0) nb.push([ci-1, cj, 'h']);
+        if (ci < nx-1) nb.push([ci+1, cj, 'h']);
+        if (cj > 0) nb.push([ci, cj-1, 'v']);
+        if (cj < ny-1) nb.push([ci, cj+1, 'v']);
+        for (const [ni, nj, ndir] of nb) {
+          const nxc = xs[ni], nyc = ys[nj];
+          if (segHitsAny(cx0, cy0, nxc, nyc, -1)) continue;
+          const cost = cur.cost + Math.abs(nxc-cx0) + Math.abs(nyc-cy0) + (ndir !== cur.dir ? TURN : 0);
+          const nid = nodeId(ni, nj);
+          const nk = stateKey(nid, ndir);
+          if (cost < (g.get(nk) ?? Infinity)) {
+            g.set(nk, cost); prev.set(nk, ck);
+            open.push({ id:nid, dir:ndir, cost });
+          }
+        }
+      }
+
+      // 重建路径点列；失败则退化为「源左缘→中点→目标左缘」简单折线（极少触发）
+      let pts = [];
+      if (goalK) {
+        let k = goalK, usedSrc = null;
+        while (k) {
+          const id = +k.split(':')[0];
+          pts.push([xs[Math.floor(id/ny)], ys[id % ny]]);
+          if (!prev.has(k)) { usedSrc = startPort.get(k); break; }
+          k = prev.get(k);
+        }
+        pts.reverse();
+        pts.unshift([usedSrc.ax, usedSrc.ay]);   // 源 anchor 起笔
+        pts.push([goalPort.ax, goalPort.ay]);    // 目标 anchor 收笔
       } else {
-        const goDown = mode === 'bottom';
-        sx = a.cx;
-        sy = goDown ? a.y + a.h + GAP : a.y - GAP;
-        tx = b.cx;
-        ty = goDown ? b.y - GAP : b.y + b.h + GAP;
-        const my = (sy + ty) / 2;
-        addPath(`M ${sx} ${sy} V ${my} H ${tx} V ${ty}`, dashed);
-        arrowDir = goDown ? 'd' : 'u';
-        midpts = { x: (sx + tx) / 2, y: my };
+        const mx = Math.min(a.x, b.x) - 30;
+        pts = [[a.x - GAP, a.cy], [mx, a.cy], [mx, b.cy], [b.x - GAP, b.cy]];
+        goalPort = { arrow:'r' };
       }
-      addArrow(tx, ty, arrowDir);
-      if (def.dataset.tag) addTag(midpts.x, midpts.y, def.dataset.tag);
+
+      // 去掉共线冗余点（连续三点同行或同列时删中间），折线更干净
+      const clean = [pts[0]];
+      for (let t = 1; t < pts.length - 1; t++) {
+        const [px,py] = clean[clean.length-1], [cx2,cy2] = pts[t], [nx2,ny2] = pts[t+1];
+        const colinear = (px === cx2 && cx2 === nx2) || (py === cy2 && cy2 === ny2);
+        if (!colinear) clean.push(pts[t]);
+      }
+      clean.push(pts[pts.length-1]);
+
+      // 绘制
+      let d = `M ${clean[0][0]} ${clean[0][1]}`;
+      for (let t = 1; t < clean.length; t++) d += ` L ${clean[t][0]} ${clean[t][1]}`;
+      addPath(d, dashed);
+      const end = clean[clean.length-1];
+      addArrow(end[0], end[1], goalPort.arrow);
+
+      // 标注：挂在「最长的那段」中点上方，通常落在通道里、不压页
+      if (def.dataset.tag) {
+        let best = 0, bx = end[0], by = end[1];
+        for (let t = 1; t < clean.length; t++) {
+          const len = Math.abs(clean[t][0]-clean[t-1][0]) + Math.abs(clean[t][1]-clean[t-1][1]);
+          if (len > best) { best = len; bx = (clean[t][0]+clean[t-1][0])/2; by = (clean[t][1]+clean[t-1][1])/2; }
+        }
+        addTag(bx, by, def.dataset.tag);
+      }
     });
   }
 

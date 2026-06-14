@@ -170,7 +170,7 @@
 **三种连接关系**（详见 `components.md`）：
 - **顺序** `.arrow`：相邻两页（本节）。
 - **发散分支** `.flow.branched` + `.fork` + `.branch[data-tag]`：一页分多路，连线由 `drawForks()` 画；支持嵌套（子分支首页设为新 `origin`）。
-- **跨页/汇聚** `.xlink`：`<div class="xlink" data-from data-to data-tag data-side data-route data-dash>`，由 `drawXlinks()` 在 `.canvas` 级 overlay 画正交折线；多条指向同一 `id` 即汇聚。线条用 `--line`，虚线 `data-dash="1"`，tag 文字垫 `--bg` 底色保证压住穿过的线可读。`.canvas` 已设 `position:relative` 作为其定位上下文。**水平跨页且中间夹页时自动「绕场外」**：从源页底边垂直到相关页面下沿外的水平通道、横贯后再垂直插入目标页（只两个直角、中段直线、不压页、多条自动分 lane 错开）；`data-route=auto|over|under` 控制绕上/绕下，绕行高度只按局部相关页计算、不牵连其它行。
+- **跨页/汇聚** `.xlink`：`<div class="xlink" data-from data-to data-tag data-side data-dash>`，由 `drawXlinks()` 在 `.canvas` 级 overlay 绘制。线条用 `--line`，虚线 `data-dash="1"`，tag 文字垫 `--bg` 底色保证压住穿过的线可读。`.canvas` 已设 `position:relative` 作为其定位上下文。**采用障碍物正交布线器**：把每个页面当成外扩留白的障碍矩形，用最短路（Dijkstra + 拐弯惩罚）在页面间空隙里布正交折线；源/目标各开上下左右四个端口，算法自动选「路程最短、拐弯最少、且不穿任何页面」的进出边与路径。**任意布局（规整网格 / 嵌套分支不规则摆放）都不压页**；多条指向同一 `id`（汇聚）自然走不同端口与通道、互不重叠。`data-side=auto|left|right|top|bottom` 可强制目标进入边（默认 `auto` 由算法选最近边）。
 
 ---
 
@@ -249,3 +249,20 @@
 
 **商品卡对齐**：`.product .pname` 用 `height:2.7em` + 两行截断**恒占两行**——单行标题也预留第二行空间，
 保证同排卡片的价格行与加购钮始终水平对齐（单/双行混排不再错位）。
+
+### H. 浮层 / 覆盖层（弹窗 / 半屏弹层 / 操作菜单 / Toast）
+
+> 全部相对**单个 `.screen`** 绝对定位（`.screen` 已 `position:relative` + `overflow:hidden`），表示
+> 「这一页弹出了浮层」、被手机屏圆角裁切，**绝不盖住整张流程图**。遮罩/ Toast 底用 `--ink` 的低透明度
+> （同标注遮罩思路），不引入新色。浮层作为 `.screen` 内容之后的子节点，脱离文档流、不影响页面高度。
+
+| 组件 | 类 | 关键数值 | 用色 / 字号 |
+|---|---|---|---|
+| 遮罩底 | `.sheet-mask`(`.center`/`.bottom`) | `inset:0`；center 居中(左右内距 28)、bottom 贴底 | `rgba(33,37,41,.32)` |
+| 居中对话框 | `.dialog` / `.dlg-ic`(`.danger`) / `.dlg-actions`(`.row`) | 圆角 18，内距 `22 20 16`；图标圈 52 圆；按钮默认纵向堆叠、`.row` 变并排 | 标题 17px 600 / 说明 14px `--muted`；危险图标圈 `--anno-danger-soft` |
+| 底部半屏弹层 | `.sheet` / `.sheet-grip` / `.sheet-hd` / `.sheet-bd` / `.sheet-foot` | 顶圆角 22，`max-height:78%`；抓手 38×5；头部发丝线分隔；关闭钮 28 圆 | 标题 17px 600；主体复用既有组件；底部按钮用 `.btn` |
+| 操作菜单 | `.action-sheet` / `.as-group` / `.as-item`(`.danger`/`.strong`) / `.as-cancel` | 组圆角 14；项内距 `15 12`；取消组独立留 8 间距 | 项 17px `--ink`，危险 `--anno-danger`，说明条 13px `--muted`；取消 17px 600 |
+| Toast | `.toast`(`.top`) | 屏内浮条；默认 `bottom:64`、`.top` 改 `top:72`；圆角 12 | 底 `rgba(33,37,41,.92)` 白字 14px，图标 17 |
+
+> 对话框危险确认用新增的 `.btn.danger`（砖红实心，复用 `--anno-danger`）。除 Toast 外都需外层 `.sheet-mask`。
+> 可复制片段见 `components.md` 第 5.20 节。

@@ -6,7 +6,8 @@
 >
 > **目录**：0 流程骨架 · 0.5 分支（含 0.5.1 嵌套子分叉）· 0.6 跨页连线 xlink · 1 导航栏 · 2 列表/入口 · 3 对话 · 4 统计图表（柱状图）·
 > **5 扩展组件**（Tab Bar / 搜索栏 / 分段 / 卡片 / 宫格 / 横滑 / Banner / 媒体列表 /
-> 商品卡 / CTA / 评分 / Feed / 表单 / 胶囊 / 时间线 / 空状态 / **地图 / 折线图 / 圆环图**）。
+> 商品卡 / CTA / 评分 / Feed / 表单 / 胶囊 / 时间线 / 空状态 / **地图 / 折线图 / 圆环图** /
+> **浮层（弹窗 / 半屏弹层 / 操作菜单 / Toast）**）。
 
 ---
 
@@ -129,26 +130,26 @@
 **参数**
 - `data-from` / `data-to`：起点、终点元素的 `id`（任意块都行，通常是 `.screen`）。
 - `data-tag`：连线上的说明文字（可省）。
-- `data-side`：出/入边，`auto`(默认，按相对位置自动) / `right` / `left` / `top` / `bottom`。
-- `data-route`：当连线需要「绕场外」走时，绕行方向 `auto`(默认，绕下方) / `over`(强制绕上方) / `under`(强制绕下方)。
+- `data-side`：约束**目标页的进入边**，`auto`(默认，由布线器自动选最优边) / `right` / `left` / `top` / `bottom`。
 - `data-dash="1"`：画成虚线，用来区分「次要/跨区/返回」类跳转（实线留给主流程）。
 
-**自动避让（关键，默认就开）**
-水平方向的跨页连线，如果**两端页面之间还夹着别的页面**，脚本不会让线从中间穿过去压页，而是
-自动改走「门型绕场外」：从源页**底边**垂直下到这一带页面**下沿外**的一条水平通道，沿通道直线横贯
-到目标页正下方，再垂直插入目标页。全程只有两个直角拐弯、中段一条直线——**绝不压任何页面，弯折最少，
-方向清晰**。多条绕同侧的线会自动分到不同高度的通道(lane)上，彼此不重叠。
+**自动布线 · 永不压页（关键，默认就开）**
+连线由一个**障碍物正交布线器**绘制：把每个页面当成「障碍矩形」（向外扩一圈留白），用最短路算法
+（Dijkstra + 拐弯惩罚）在页面之间的**空隙**里找一条正交折线。源页与目标页各开「上 / 下 / 左 / 右」
+四个端口，算法自动挑**路程最短、拐弯最少、且不穿过任何页面**的进出方向与路径——这就是「按目标四个
+方向盘点哪个最近、又保证不压页」。
 
-- 绕行高度**只按这条线相关的局部页面**计算（夹在两端之间、且同一行的页），不会牵连其它行。
-- 默认绕**下方**（底部没有 `.stage-label` 编号，观感更干净）；想绕上方就写 `data-route="over"`。
-- 相邻或近距、中间无夹页的连线，仍走原来的紧凑正交折线，不绕远。
+- **任意布局都不压页**：无论规整网格还是嵌套分支的不规则摆放，连线只走空隙，绝不穿过页面卡片。
+- **方向清晰、弯折最少**：拐弯有惩罚，算法优先走直；只有被页面挡住时才拐，且总拐弯数最小。
+- **汇聚不打架**：多条指向同一页的线会自然选不同端口/通道进入，互不重叠。
+- **就近进入**：目标在右就从左边进、在下就从上/下边进，由算法按实际几何决定，无需手填。
 
 **要点**
 - **汇聚**：多条 `xlink` 的 `data-to` 指向同一个 `id` 即可，无需改目标页本身。
 - 连线画在 `.canvas` 级 overlay 上，**可跨行、跨分支**；与 `.arrow`/`.fork` 共存、互不干扰。
 - 截图正常（用内联 path，非 `<use>`）。窗口缩放自动重绘。
 - 主流程仍优先用顺序 `.arrow` 和分支 `.fork`；`xlink` 用于它们表达不了的「跨越」与「汇聚」。
-- 一般**不用手动指定 `data-side`/`data-route`**——`auto` 已能避让夹页。只有想精确控制绕上/绕下时才设。
+- 一般**不用手动指定 `data-side`**——`auto` 已能选最优进入边并避让所有页面；只有想强制从某一边进入时才设。
 
 ---
 
@@ -778,6 +779,69 @@
 
 > 既有的**柱状图**见第 4 节（`.bars`）。折线/柱状/圆环三种图表配齐，按数据形态选用。
 
+### 5.20 浮层 / 覆盖层（弹窗 / 半屏弹层 / 操作菜单 / Toast）
+
+表达「这一页弹出了一个浮层」。**关键：浮层放进它所属的 `.screen` 内、作为内容之后的子节点**——
+它相对这一页绝对定位、被手机屏圆角裁切，绝不会盖住整张流程图。一页一般只放一个浮层。
+
+```html
+<!-- A. 居中对话框（确认 / 删除 / 提示）。放在某页 .screen 内的最后。 -->
+<div class="sheet-mask center">
+  <div class="dialog">
+    <!-- 可选顶部图标圈；危险操作加 .danger 变砖红 -->
+    <div class="dlg-ic danger"><i data-lucide="trash-2"></i></div>
+    <div class="dlg-title">删除这张草稿？</div>
+    <div class="dlg-text">删除后无法恢复，确定要继续吗？</div>
+    <!-- 按钮默认上下堆叠；要左右并排给 .dlg-actions 加 .row -->
+    <div class="dlg-actions">
+      <div class="btn danger">删除</div>
+      <div class="btn ghost">取消</div>
+    </div>
+  </div>
+</div>
+
+<!-- B. 底部半屏弹层（选规格 / 筛选 / 详情）。内部可放任意已有组件。 -->
+<div class="sheet-mask bottom">
+  <div class="sheet">
+    <div class="sheet-grip"></div>
+    <div class="sheet-hd">
+      <span class="sh-title">选择规格</span>
+      <span class="sh-close"><i data-lucide="x"></i></span>
+    </div>
+    <div class="sheet-bd">
+      <div class="form-field"><div class="flabel">颜色</div></div>
+      <div class="chips"><span class="chip active">米白</span><span class="chip">雾蓝</span><span class="chip">炭灰</span></div>
+      <div class="form-field"><div class="flabel">尺码</div></div>
+      <div class="chips"><span class="chip">S</span><span class="chip active">M</span><span class="chip">L</span></div>
+    </div>
+    <div class="sheet-foot"><div class="btn primary">确定</div></div>
+  </div>
+</div>
+
+<!-- C. iOS 操作菜单（成组操作项 + 独立取消组） -->
+<div class="sheet-mask bottom">
+  <div class="action-sheet">
+    <div class="as-group">
+      <div class="as-cap">这条动态将对所有人可见</div>
+      <div class="as-item strong">分享到动态</div>
+      <div class="as-item">保存到相册</div>
+      <div class="as-item danger">举报</div>
+    </div>
+    <div class="as-cancel">取消</div>
+  </div>
+</div>
+
+<!-- D. Toast 轻提示（无遮罩，屏内浮一条短反馈）。默认居中偏下，加 .top 浮到顶部。 -->
+<div class="toast"><i data-lucide="check"></i>已加入购物车</div>
+```
+
+**要点**
+- `.sheet-mask` 是半透明遮罩底：`.center` 居中托 `.dialog`，`.bottom` 贴底托 `.sheet` / `.action-sheet`。
+- `.dialog` 按钮、`.sheet-foot` 里的按钮都直接用既有 `.btn`（含本次新增的 `.btn.danger` 危险态）。
+- `.sheet-bd` 里随意嵌 `.form-field` / `.chips` / `.list-item` / `.product-grid` 等已有组件，不必新写。
+- **Toast 不需要遮罩**，直接把 `.toast` 放进 `.screen` 即可；其余三种都要外层 `.sheet-mask`。
+- 想表达「点击某项弹出此浮层」，给**带浮层的那一页**单独画一帧，用 `.arrow` 从触发页指过来即可。
+
 ---
 
 ## 拼装清单（自检）
@@ -790,6 +854,7 @@
 - [ ] 用了扩展组件时：贴底的 `.tabbar` / `.cta-bar` 放在 `.screen` **最后**，且二者不同时出现
 - [ ] 底部按钮各占一行 / 主按钮配弱化小字时，用 `.cta-bar.stack`（+ `.cta-hint`），不靠堆多个 `.cta-bar`——按钮高度才不会被压矮
 - [ ] 跨页 `xlink` 优先用 `data-side="auto"`：中间夹页时会自动绕场外，不要手动改 side 去硬绕
+- [ ] 浮层（`.dialog`/`.sheet`/`.action-sheet`/`.toast`）放进所属 `.screen` 内、作为内容之后的子节点；除 Toast 外都套一层 `.sheet-mask`，一页一般只放一个浮层
 - [ ] `.tabbar` 全页只有一个 `.tab.active`；`.segment`/`.chips` 的选中态也唯一
 - [ ] 商品卡按两列摆放（偶数个最齐）；宫格按 4 的倍数最齐
 - [ ] 时间线已完成节点加 `.done`；空状态 `.empty` 直接放进 `.body`
