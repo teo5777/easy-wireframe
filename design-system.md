@@ -108,13 +108,12 @@
 ### 画布与流程
 | 项 | 值 |
 |---|---|
-| `.canvas` | `width: max-content; margin: 0 auto; padding: 40px 48px 90px` |
+| `.canvas` | `width: max-content; margin: 0 auto; padding: 40px 48px 90px`；`position:absolute`（连线 overlay 定位上下文） |
 | `.page-header` | 下边距 56，居中 |
-| `.flow` | `display:flex; flex-wrap:nowrap; gap:4` |
-| `.stage` | 纵向，`gap:16`，顶部是 `.stage-label` 编号 |
-| `.stage, .arrow` | **`flex-shrink: 0`**（绝不被压缩） |
-| `.arrow` | `min-width:118; padding-top:400`（对齐 812 高页面的纵向中部） |
-| 箭头线 SVG | `width:104 height:12`，见下方画法 |
+| `.flow` | `display:grid; grid-auto-columns:375px; grid-auto-rows:max-content; column-gap:132; row-gap:96; justify-content:start; align-items:start` |
+| `.stage` | 纵向，`gap:16`，顶部是 `.stage-label` 编号；用 `data-cell="行,列"` 定位（JS 转 `grid-row/column`） |
+| `.screen` | 必须带唯一 `id`（连线靠 id 连两端） |
+| 连线 | 全部由 JS(`drawLinks`) 画进 `.canvas` 级 SVG overlay：同行相邻=水平直线，其余=正交折线；**只画线不画箭头**，文字压线上 |
 
 ---
 
@@ -150,27 +149,30 @@
 
 ---
 
-## 五、箭头 SVG（直线 + 箭头一体绘制，绝不错位）
+## 五、页面摆放与连线（网格坐标 + 统一 `.link` 边）
+
+**摆放**：每个页面是 `.stage`，用 `data-cell="行,列"` 声明网格坐标（行/列从 1 起），内含带唯一 `id` 的
+`.screen`。JS(`layoutInit`) 启动时把坐标同步成 `grid-row/grid-column`；漏写坐标的页面自动补到空格。
+**新增页面只占一个空格、其它页坐标不变**——这是网格相对旧 flex 布局的核心优势（加页不再整行重排）。
+
+**连线**：所有跳转统一用 `.link`，由 `drawLinks()` 按真实坐标画进 `.canvas` 级 SVG overlay：
 
 ```html
-<div class="arrow">
-  <div class="tag">点击「xxx」</div>
-  <div class="line">
-    <svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M0 6 H102 M97 2 L102 6 L97 10"
-            stroke="currentColor" stroke-width="1"
-            stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </div>
-</div>
+<!-- 两端 .screen 各有 id；data-tag 写点击动作 -->
+<div class="link" data-from="源id" data-to="目标id"
+     data-tag="点击「xxx」" data-side="auto" data-dash="1"></div>
 ```
 
-`.tag` 在上、箭头在下；`padding-top:400` 让整组对齐到页面纵向中部。多页面时每两页之间插一个 `.arrow`。
+**只画线、不画箭头**——方向靠左→右/上→下的摆位与线上文字表达，线比文字长以免被盖满。
+- **同行相邻两页**（行同、列差 1、目标在右）→ 一条**水平直线**（线 `--line`、tag 11px `--muted` 压线中点）。
+- **其余**（跨行/跨列/隔页/汇聚/返回）→ **障碍物正交布线器**：把每个页面当外扩留白（`MARGIN≈40`）的障碍矩形，
+  用最短路（Dijkstra + 拐弯惩罚）在页面间空隙里布正交折线；源/目标各开上下左右四个端口，算法自动选
+  「路程最短、拐弯最少、且不穿任何页面」的进出边，并与沿途页面留足间距不贴边。**任意布局都不压页**；
+  多条指向同一 `id`（汇聚）自然走不同端口、互不重叠。
+- `data-side=auto|left|right|top|bottom` 强制目标进入边（默认 `auto`）；`data-dash="1"` 走虚线（次要/返回）；
+  tag 文字垫 `--bg` 底色压住穿过的连线保证可读。`.canvas` 已 `position:absolute` 作为 overlay 定位上下文。
 
-**三种连接关系**（详见 `components.md`）：
-- **顺序** `.arrow`：相邻两页（本节）。
-- **发散分支** `.flow.branched` + `.fork` + `.branch[data-tag]`：一页分多路，连线由 `drawForks()` 画；支持嵌套（子分支首页设为新 `origin`）。
-- **跨页/汇聚** `.xlink`：`<div class="xlink" data-from data-to data-tag data-side data-dash>`，由 `drawXlinks()` 在 `.canvas` 级 overlay 绘制。线条用 `--line`，虚线 `data-dash="1"`，tag 文字垫 `--bg` 底色保证压住穿过的线可读。`.canvas` 已设 `position:relative` 作为其定位上下文。**采用障碍物正交布线器**：把每个页面当成外扩留白的障碍矩形，用最短路（Dijkstra + 拐弯惩罚）在页面间空隙里布正交折线；源/目标各开上下左右四个端口，算法自动选「路程最短、拐弯最少、且不穿任何页面」的进出边与路径。**任意布局（规整网格 / 嵌套分支不规则摆放）都不压页**；多条指向同一 `id`（汇聚）自然走不同端口与通道、互不重叠。`data-side=auto|left|right|top|bottom` 可强制目标进入边（默认 `auto` 由算法选最近边）。
+> 旧的 `.xlink` 仍被 `drawLinks` 识别（向后兼容），新文件统一用 `.link`。详见 `components.md` 第 0 / 0.5 节。
 
 ---
 

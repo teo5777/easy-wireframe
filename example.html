@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>悠集 · 生活好物 · 页面流程线框图</title>
+<title>悠集 · 生活好物</title>
 <style>
   :root {
     --ink: #33373d;        /* 主文字：近黑但偏柔 */
@@ -46,7 +46,7 @@
   .canvas {
     width: max-content;
     padding: 40px 48px 90px;
-    position: absolute;   /* 作为跨页连线 overlay(.xlink-overlay) 的定位上下文；并脱流交给 .zoom-stage 量尺寸 */
+    position: absolute;   /* 作为页面间连线 overlay(.link-overlay) 的定位上下文；并脱流交给 .zoom-stage 量尺寸 */
     top: 0; left: 0;
     transform-origin: 0 0;
   }
@@ -90,13 +90,20 @@
     color: var(--line);
   }
 
-  /* 横向流程：页面卡片 + 箭头
-     —— 固定横排、绝不换行；窗口装不下时整页横向滚动，保证布局始终正确 */
+  /* ===== 网格流程：页面卡片按「行,列」坐标摆放 =====
+     —— 用 CSS Grid 取代旧的 flex 横排。每个 .stage 用 data-cell="行,列" 声明位置
+        （JS 启动时转成 grid-row/grid-column）。新增页面只占一个空格子、其它页纹丝不动，
+        从根上解决「加一页就整行重排」的错乱。所有页面间连线由 JS(drawLinks) 按真实坐标绘制。 */
   .flow {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: nowrap;
-    gap: 4px;
+    display: grid;
+    grid-auto-flow: row;
+    grid-auto-columns: 375px;       /* 列宽 = 页面宽，固定 */
+    grid-auto-rows: max-content;    /* 行高由该行最高页决定，参差自然、不拉伸不裁切 */
+    column-gap: 180px;              /* 列间距：留足让连线比其上的说明文字更长，避免文字盖满整条线 */
+    row-gap: 132px;                 /* 行间距：给绕行折线离开页面后更宽的走线通道（配合布线器 MARGIN） */
+    justify-content: start;
+    align-items: start;             /* 同行各页顶端对齐，沿用旧观感 */
+    position: relative;             /* 作为连线 overlay 的定位上下文 */
   }
 
   .stage {
@@ -113,92 +120,27 @@
     font-weight: 500;
   }
 
-  /* 流程箭头 */
-  .arrow {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    color: var(--muted);
-    min-width: 118px;
-    padding-top: 400px;   /* 让箭头大致对齐到页面纵向中部（页面高 812） */
-  }
-  /* 用原生 SVG 一体绘制：直线 + 箭头，不再拼接，绝不错位 */
-  .arrow .line { color: var(--line); display: block; line-height: 0; }
-  .arrow .line svg { display: block; width: 104px; height: 12px; }
-  .arrow .tag {
-    font-size: 11px;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-    text-align: center;
-    color: var(--muted);
-  }
-
-  /* ===== 分支流程（同一来源分出多条路线，支持任意行数 / 任意位置分叉 / 嵌套）=====
-     结构：
-       <div class="flow branched">
-         …可选前置 .stage/.arrow…           （分叉点也可在中间某页之后）
-         <div class="stage origin">…</div>   （分叉来源页：连线从它右侧中点发出）
-         <div class="fork"></div>            （占位列，预留连线空间；连线由 JS 画进 SVG overlay）
-         <div class="branches">
-           <div class="branch" data-tag="点击「X」">…一行子流程…</div>
-           <div class="branch" data-tag="点击「Y」">… N 行皆可 …</div>
-         </div>
-       </div>
-     连线（折线 + 标准箭头 + tag）全部由 JS(drawForks) 按真实 DOM 坐标绘制，
-     因此与行数、各行高度、分叉位置无关，且天然支持 .branch 内再嵌套 .fork。 */
-  .flow.branched { align-items: center; position: relative; }
-  .flow.branched > .stage.origin { align-self: center; }
-
-  /* .fork 仅作占位列，撑出连线所需的水平空间；实际线条画在 .fork-overlay 里 */
-  .fork {
-    align-self: stretch;
-    width: 150px;
-    flex-shrink: 0;
-  }
-
-  /* 覆盖整个 .branched 区域的 SVG 画布，承载所有分叉连线（不拦截鼠标） */
-  .fork-overlay {
+  /* ===== 页面间连线（统一「边」模型）=====
+     声明式的一条边：给两端页面 .screen 加 id，再放一个
+       <div class="link" data-from="源id" data-to="目标id" data-tag="说明"
+            data-side="auto|right|left|top|bottom" data-dash="1"></div>
+     由 JS(drawLinks) 画进 .canvas 级 SVG overlay：
+       · 同行相邻两页 → 一条水平直箭头（保留主流程清爽横排观感）；
+       · 其余（跨行/跨列/汇聚/返回）→ 障碍物正交布线器自动绕开页面找最短折线。
+     旧的 .xlink 作为别名保留，确保历史文件不炸。 */
+  .link, .xlink { display: none; }   /* 占位声明，本身不渲染 */
+  .link-overlay {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
     pointer-events: none;
     overflow: visible;
-    z-index: 1;
+    z-index: 3;               /* 浮在页面之上、低于标注图钉(50) */
   }
-  .fork-overlay path { stroke: var(--line); stroke-width: 1; fill: none; }
-  /* 分叉线上的入口标注（JS 定位到每行入口箭头上方，样式同普通 .arrow .tag） */
-  .fork-tag {
-    position: absolute;
-    font-size: 11px;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-    text-align: left;
-    color: var(--muted);
-    transform: translateY(-100%);   /* 上移到线上方；水平方向左对齐到 left（线的左端） */
-    pointer-events: none;
-    z-index: 2;
-  }
-
-  /* ===== 跨页连线 xlink：在任意两个页面框之间画连接线（支持多条汇聚到同一页框）=====
-     用法：给目标页 .screen（或任意块）加 id；在 .canvas 内任意处放一个
-       <div class="xlink" data-from="起点id" data-to="终点id" data-tag="说明"
-            data-side="auto|right|left|top|bottom"></div>
-     连线由 JS(drawXlinks) 画进 .canvas 级别的 SVG overlay，按真实坐标走正交折线 + 箭头。
-     与分支连线(drawForks)独立，可共存。曲线走“源右/目标左”优先，自动避免穿页。 */
-  .xlink { display: none; }   /* 占位声明，本身不渲染 */
-  .xlink-overlay {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    pointer-events: none;
-    overflow: visible;
-    z-index: 3;               /* 高于分支 overlay(1)，浮在页面之上、低于标注图钉(50) */
-  }
-  .xlink-overlay path { stroke: var(--line); stroke-width: 1; fill: none; }
-  /* 跨页连线虚线变体：用 data-dash 触发，区分“次要/返回”类跳转 */
-  .xlink-overlay path.dashed { stroke-dasharray: 4 4; }
-  .xlink-tag {
+  .link-overlay path { stroke: var(--line); stroke-width: 1; fill: none; }
+  /* 虚线变体：用 data-dash 触发，区分“次要/跨区/返回”类跳转 */
+  .link-overlay path.dashed { stroke-dasharray: 4 4; }
+  .link-tag {
     position: absolute;
     font-size: 11px;
     letter-spacing: 0.3px;
@@ -209,19 +151,6 @@
     pointer-events: none;
     z-index: 4;
     transform: translate(-50%, -50%);   /* 锚到折线中点 */
-  }
-
-  .branches {
-    display: flex;
-    flex-direction: column;
-    gap: 48px;
-    flex-shrink: 0;
-  }
-  .branch {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: nowrap;
-    gap: 4px;
   }
 
   /* ===== 简洁页面卡片（无手机壳 / 无状态栏） ===== */
@@ -1275,8 +1204,15 @@
   .toast.top { top: 72px; bottom: auto; }
   .toast [data-lucide] { width: 17px; height: 17px; color: var(--white); flex-shrink: 0; }
 
-  /* 流程内的列（页面 / 箭头）一律不压缩，保持原尺寸横向排开 */
-  .stage, .arrow { flex-shrink: 0; }
+  /* 布局模式：可拖动页面卡片重排网格位置 */
+  body.layout-on .stage { cursor: grab; }
+  body.layout-on .stage * { cursor: grab; }
+  .stage.dragging {
+    cursor: grabbing;
+    z-index: 100;
+    opacity: 0.85;
+  }
+  .stage.dragging, .stage.dragging * { cursor: grabbing !important; }
 
   /* ===================== 标注系统（操作层 UI）=====================
      与线框同一套设计语言：发丝边 + 柔和层叠投影 + 大圆角 + 毛玻璃，
@@ -1329,6 +1265,86 @@
     border-right: 1px solid var(--hairline);
     white-space: nowrap;
   }
+
+  /* ===== 帮助按钮 + 下拉浮层（工具栏最前） ===== */
+  .help-wrap { position: relative; display: flex; align-items: center; }
+  /* 圆形 ? 钮：与工具栏同语言，开启态实心墨色 */
+  .anno-toolbar button.help-btn {
+    width: 28px; height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--hairline);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .anno-toolbar button.help-btn:hover { background: var(--fill); color: var(--ink); }
+  .anno-toolbar button.help-btn.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
+  /* hover 小提示：定位在按钮下方，纯文本 */
+  .help-hint {
+    position: absolute;
+    top: 38px; left: 0;
+    z-index: 10001;
+    background: var(--ink);
+    color: var(--white);
+    font-size: 11px;
+    line-height: 1.4;
+    border-radius: 8px;
+    padding: 6px 10px;
+    white-space: nowrap;
+    box-shadow: var(--anno-shadow);
+    opacity: 0;
+    transform: translateY(-3px);
+    pointer-events: none;
+    transition: opacity .15s, transform .15s;
+  }
+  .help-wrap:hover .help-hint { opacity: 1; transform: translateY(0); }
+  .help-btn.active + .help-hint { opacity: 0 !important; }   /* 浮层打开时不再显示 hover 提示 */
+
+  /* 下拉浮层：从按钮下方展开的帮助说明卡片 */
+  .help-pop {
+    position: absolute;
+    top: 42px; left: 0;
+    z-index: 10001;
+    width: 320px;
+    background: var(--white);
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    padding: 16px 18px 18px;
+    box-shadow: var(--anno-shadow);
+    display: none;
+    animation: annoPopIn .14s ease-out;
+    cursor: default;
+  }
+  .help-pop.show { display: block; }
+  .help-pop h4 { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; letter-spacing: 0.2px; }
+  .help-pop .help-lead { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 14px; }
+  .help-pop .help-sec { padding: 11px 0; border-top: 1px solid var(--line-soft); }
+  .help-pop .help-sec:first-of-type { border-top: none; padding-top: 2px; }
+  .help-pop .help-sec .hs-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+  .help-pop .help-sec .hs-title .hs-tag {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--fill);
+    border-radius: 6px;
+    padding: 1px 7px;
+  }
+  .help-pop .help-sec .hs-body { font-size: 12px; color: var(--ink); line-height: 1.55; }
+  .help-pop .help-sec .hs-body b { font-weight: 600; }
+  .help-pop .help-sec .hs-why { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 4px; }
 
   /* 缩放控件组：左侧用发丝竖线与标注按钮分隔；±按钮做成等宽方钮，百分比可点（=复位 100%） */
   .anno-toolbar .zoom-group {
@@ -1606,23 +1622,15 @@
   <div class="canvas">
 
   <div class="page-header">
-    <h1 id="docTitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑标题…" title="点击编辑标题">悠集 · 生活好物 · 全流程线框图</h1>
-    <p id="docSubtitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑副标题…" title="点击编辑副标题">从首页分出五条主线：购物（分类→详情→选规格弹层→购物车→删除确认→确认→支付成功）· 搜索（→结果，卡片汇聚到商品详情）· 发现（Feed→内容详情→分享菜单）· 我的（嵌套：订单→订单详情含地图 / 消费统计）· 门店（附近门店→门店详情）。含弹窗/半屏弹层/操作菜单/Toast、纵向多按钮，及两条跨页绕场外汇聚连线</p>
+    <h1 id="docTitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑标题…" title="点击编辑标题">悠集 · 生活好物</h1>
+    <p id="docSubtitle" contenteditable="true" spellcheck="false" data-placeholder="点击编辑副标题…" title="点击编辑副标题">全流程电商 App ·  网格平铺 + 连线标注点击流转</p>
   </div>
 
-  <!-- 完整 App 全流程视图（17 页）：首页(origin)分五条主线。
-       购物：分类→商品列表→商品详情→购物车→确认订单→支付成功
-       搜索：搜索→搜索结果（虚线/实线 xlink 汇聚到商品详情）
-       发现：社区 Feed→内容详情
-       我的：个人中心→{订单列表→订单详情(时间线+地图) / 消费统计}（嵌套子分叉）
-       门店：附近门店(地图)→门店详情
-       演示：扩展组件全家桶 + 嵌套分叉 + 跨页汇聚连线 xlink。 -->
-  <div class="flow branched">
+  <div class="flow">
 
-    <!-- ========== ① 首页（分叉来源） ========== -->
-    <div class="stage origin">
+    <div class="stage" data-cell="1,1">
       <div class="stage-label">① 首页</div>
-      <div class="screen">
+      <div class="screen" id="home">
         <div class="navbar">
           <span class="nav-btn"><i data-lucide="map-pin"></i></span>
           <span class="title">悠集</span>
@@ -1662,19 +1670,9 @@
       </div>
     </div>
 
-    <div class="fork"></div>
-
-    <div class="branches">
-
-      <!-- ============================================================
-           主线 · 购物漏斗：分类 → 列表 → 详情 → 购物车 → 确认 → 支付成功
-           ============================================================ -->
-      <div class="branch" data-tag="点击「分类」">
-
-        <!-- ② 分类 -->
-        <div class="stage">
-          <div class="stage-label">② 分类</div>
-          <div class="screen">
+    <div class="stage" data-cell="1,2">
+      <div class="stage-label">② 分类</div>
+      <div class="screen" id="category">
             <div class="navbar">
               <span class="nav-btn ghost"></span>
               <span class="title">分类</span>
@@ -1698,17 +1696,11 @@
               </div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">点击「女装」</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ③ 商品列表 -->
-        <div class="stage">
-          <div class="stage-label">③ 商品列表</div>
-          <div class="screen">
+    <div class="stage" data-cell="1,3">
+      <div class="stage-label">③ 商品列表</div>
+      <div class="screen" id="product-list">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">女装</span>
@@ -1726,17 +1718,11 @@
               </div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">点击商品</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ④ 商品详情（汇聚点：商品列表 + 搜索结果都到这里，id=pdp） -->
-        <div class="stage">
-          <div class="stage-label">④ 商品详情</div>
-          <div class="screen" id="pdp">
+    <div class="stage" data-cell="1,4">
+      <div class="stage-label">④ 商品详情</div>
+      <div class="screen" id="pdp">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">商品详情</span>
@@ -1762,17 +1748,11 @@
               <div class="btn primary">立即购买</div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">点击「加入购物车」</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ④-1 选规格（底部半屏弹层 .sheet 叠在详情页上） -->
-        <div class="stage">
-          <div class="stage-label">④-1 选规格弹层</div>
-          <div class="screen">
+    <div class="stage" data-cell="1,5">
+      <div class="stage-label">④-1 选规格弹层</div>
+      <div class="screen" id="sku-sheet">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">商品详情</span>
@@ -1802,17 +1782,11 @@
               </div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">选好规格 · 点「确定」</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ⑤ 购物车 -->
-        <div class="stage">
-          <div class="stage-label">⑤ 购物车</div>
-          <div class="screen">
+    <div class="stage" data-cell="1,6">
+      <div class="stage-label">⑤ 购物车</div>
+      <div class="screen" id="cart">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">购物车</span>
@@ -1829,17 +1803,11 @@
               <div class="btn primary" style="flex:0 0 150px">去结算</div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">侧滑商品 → 删除</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ⑤-1 删除确认（居中对话框 .dialog 叠在购物车上） -->
-        <div class="stage">
-          <div class="stage-label">⑤-1 删除确认</div>
-          <div class="screen">
+    <div class="stage" data-cell="1,7">
+      <div class="stage-label">⑤-1 删除确认</div>
+      <div class="screen" id="cart-del">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">购物车</span>
@@ -1862,17 +1830,11 @@
               </div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">关闭弹窗 · 点「去结算」</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ⑥ 确认订单 -->
-        <div class="stage">
-          <div class="stage-label">⑥ 确认订单</div>
-          <div class="screen">
+    <div class="stage" data-cell="1,8">
+      <div class="stage-label">⑥ 确认订单</div>
+      <div class="screen" id="checkout">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">确认订单</span>
@@ -1890,17 +1852,11 @@
               <div class="btn primary" style="flex:0 0 150px">提交订单</div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">点击「提交订单」</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ⑦ 支付成功 -->
-        <div class="stage">
-          <div class="stage-label">⑦ 支付成功</div>
-          <div class="screen">
+    <div class="stage" data-cell="1,9">
+      <div class="stage-label">⑦ 支付成功</div>
+      <div class="screen" id="pay-success">
             <div class="navbar">
               <span class="nav-btn ghost"></span>
               <span class="title">支付结果</span>
@@ -1928,19 +1884,11 @@
             <!-- 屏内 Toast 轻提示（无遮罩）。本页底部有 CTA，故用 .top 浮到顶部，避免压住按钮 -->
             <div class="toast top"><i data-lucide="check"></i>支付成功，已通知商家发货</div>
           </div>
-        </div>
+    </div>
 
-      </div>
-
-      <!-- ============================================================
-           搜索线：搜索 → 搜索结果（搜索结果卡片 xlink 汇聚到 ④商品详情）
-           ============================================================ -->
-      <div class="branch" data-tag="点击搜索栏">
-
-        <!-- ⑧ 搜索 -->
-        <div class="stage">
-          <div class="stage-label">⑧ 搜索</div>
-          <div class="screen">
+    <div class="stage" data-cell="2,2">
+      <div class="stage-label">⑧ 搜索</div>
+      <div class="screen" id="search">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">搜索</span>
@@ -1954,17 +1902,11 @@
               <div class="chips"><span class="chip">春季新品</span><span class="chip">百搭外套</span><span class="chip">通勤穿搭</span><span class="chip">小香风</span></div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">输入并搜索</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ⑨ 搜索结果（id=search-result，卡片可点进商品详情，xlink 汇聚到 ④） -->
-        <div class="stage">
-          <div class="stage-label">⑨ 搜索结果</div>
-          <div class="screen" id="search-result">
+    <div class="stage" data-cell="2,3">
+      <div class="stage-label">⑨ 搜索结果</div>
+      <div class="screen" id="search-result">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">针织衫</span>
@@ -1980,19 +1922,11 @@
               </div>
             </div>
           </div>
-        </div>
+    </div>
 
-      </div>
-
-      <!-- ============================================================
-           发现线：社区 Feed → 内容详情
-           ============================================================ -->
-      <div class="branch" data-tag="点击「发现」">
-
-        <!-- ⑩ 发现 -->
-        <div class="stage">
-          <div class="stage-label">⑩ 发现</div>
-          <div class="screen">
+    <div class="stage" data-cell="3,2">
+      <div class="stage-label">⑩ 发现</div>
+      <div class="screen" id="discover">
             <div class="navbar">
               <span class="nav-btn ghost"></span>
               <span class="title">发现</span>
@@ -2020,17 +1954,11 @@
               <div class="tab"><i data-lucide="user"></i><div class="tlabel">我的</div></div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">点击动态</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ⑪ 内容详情（id=note-detail：底部「同款商品」卡片 xlink 汇聚到 ④商品详情，跨多页绕场外） -->
-        <div class="stage">
-          <div class="stage-label">⑪ 内容详情</div>
-          <div class="screen" id="note-detail">
+    <div class="stage" data-cell="3,3">
+      <div class="stage-label">⑪ 内容详情</div>
+      <div class="screen" id="note-detail">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">笔记详情</span>
@@ -2059,17 +1987,11 @@
               <div class="send"><i data-lucide="arrow-up"></i></div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">点右上角「分享」</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ⑪-1 分享菜单（iOS 操作菜单 .action-sheet 叠在笔记详情上） -->
-        <div class="stage">
-          <div class="stage-label">⑪-1 分享菜单</div>
-          <div class="screen">
+    <div class="stage" data-cell="3,4">
+      <div class="stage-label">⑪-1 分享菜单</div>
+      <div class="screen" id="share-menu">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">笔记详情</span>
@@ -2096,20 +2018,11 @@
               </div>
             </div>
           </div>
-        </div>
+    </div>
 
-      </div>
-
-      <!-- ============================================================
-           我的线（嵌套子分叉）：我的 → {订单列表→订单详情(时间线+地图) / 消费统计}
-           ============================================================ -->
-      <div class="branch" data-tag="点击「我的」">
-        <div class="flow branched">
-
-          <!-- ⑫ 我的（子分叉来源） -->
-          <div class="stage origin">
-            <div class="stage-label">⑫ 我的</div>
-            <div class="screen">
+    <div class="stage" data-cell="4,2">
+      <div class="stage-label">⑫ 我的</div>
+      <div class="screen" id="mine">
               <div class="navbar">
                 <span class="nav-btn ghost"></span>
                 <span class="title">我的</span>
@@ -2141,19 +2054,11 @@
                 <div class="tab active"><i data-lucide="user"></i><div class="tlabel">我的</div></div>
               </div>
             </div>
-          </div>
+    </div>
 
-          <div class="fork"></div>
-
-          <div class="branches">
-
-            <!-- 子线 a · 订单：订单列表 → 订单详情 -->
-            <div class="branch" data-tag="点击「订单」">
-
-              <!-- ⑬ 订单列表 -->
-              <div class="stage">
-                <div class="stage-label">⑬ 订单列表</div>
-                <div class="screen">
+    <div class="stage" data-cell="4,3">
+      <div class="stage-label">⑬ 订单列表</div>
+      <div class="screen" id="orders">
                   <div class="navbar">
                     <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
                     <span class="title">我的订单</span>
@@ -2177,17 +2082,11 @@
                     </div>
                   </div>
                 </div>
-              </div>
+    </div>
 
-              <div class="arrow">
-                <div class="tag">点击「查看物流」</div>
-                <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              </div>
-
-              <!-- ⑭ 订单详情（时间线 + 地图） -->
-              <div class="stage">
-                <div class="stage-label">⑭ 订单详情</div>
-                <div class="screen">
+    <div class="stage" data-cell="4,4">
+      <div class="stage-label">⑭ 订单详情</div>
+      <div class="screen" id="order-detail">
                   <div class="navbar">
                     <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
                     <span class="title">订单详情</span>
@@ -2217,15 +2116,11 @@
                     </div>
                   </div>
                 </div>
-              </div>
+    </div>
 
-            </div>
-
-            <!-- 子线 b · 消费统计 -->
-            <div class="branch" data-tag="点击「消费统计」">
-              <div class="stage">
-                <div class="stage-label">⑮ 消费统计</div>
-                <div class="screen">
+    <div class="stage" data-cell="5,3">
+      <div class="stage-label">⑮ 消费统计</div>
+      <div class="screen" id="spend-stats">
                   <div class="navbar">
                     <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
                     <span class="title">消费统计</span>
@@ -2271,22 +2166,11 @@
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+    </div>
 
-          </div>
-        </div>
-      </div>
-
-      <!-- ============================================================
-           门店线：附近门店(地图) → 门店详情
-           ============================================================ -->
-      <div class="branch" data-tag="点击「附近门店」">
-
-        <!-- ⑯ 附近门店（地图） -->
-        <div class="stage">
-          <div class="stage-label">⑯ 附近门店</div>
-          <div class="screen">
+    <div class="stage" data-cell="6,2">
+      <div class="stage-label">⑯ 附近门店</div>
+      <div class="screen" id="stores">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">附近门店</span>
@@ -2308,17 +2192,11 @@
               <div class="media-item"><div class="thumb"><i data-lucide="store"></i></div><div class="mtxt"><div class="m1">悠集生活馆 · 滨江店</div><div class="m2">营业中 · 滨江区江南大道 228 号</div><div class="m3">距你 5.1km</div></div></div>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="arrow">
-          <div class="tag">点击门店</div>
-          <div class="line"><svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M0 6 H102 M97 2 L102 6 L97 10" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-        </div>
-
-        <!-- ⑰ 门店详情 -->
-        <div class="stage">
-          <div class="stage-label">⑰ 门店详情</div>
-          <div class="screen">
+    <div class="stage" data-cell="6,3">
+      <div class="stage-label">⑰ 门店详情</div>
+      <div class="screen" id="store-detail">
             <div class="navbar">
               <span class="nav-btn"><i data-lucide="chevron-left"></i></span>
               <span class="title">门店详情</span>
@@ -2344,25 +2222,60 @@
               <div class="btn primary">到店自提</div>
             </div>
           </div>
-        </div>
-
-      </div>
-
     </div>
-  </div>
 
-  <!-- 跨页汇聚连线：搜索结果(⑨)的商品卡，可点进 ④商品详情（与商品列表→商品详情形成汇聚） -->
-  <div class="xlink" data-from="search-result" data-to="pdp" data-tag="点击商品 → 商品详情" data-side="auto" data-dash="1"></div>
-  <!-- 跨多页汇聚：⑪内容详情的「同款商品」也汇聚到 ④商品详情。跨越多页，自动绕场外走线（不压页） -->
-  <div class="xlink" data-from="note-detail" data-to="pdp" data-tag="点同款 → 商品详情" data-side="auto" data-dash="1"></div>
+    <!-- ===== 页面间连线（统一 .link 边）===== -->
+    <div class="link" data-from="home" data-to="category" data-tag="点击「分类」" data-side="auto"></div>
+    <div class="link" data-from="category" data-to="product-list" data-tag="点击「女装」" data-side="auto"></div>
+    <div class="link" data-from="product-list" data-to="pdp" data-tag="点击商品" data-side="auto"></div>
+    <div class="link" data-from="pdp" data-to="sku-sheet" data-tag="点击「加入购物车」" data-side="auto"></div>
+    <div class="link" data-from="sku-sheet" data-to="cart" data-tag="选好规格·点「确定」" data-side="auto"></div>
+    <div class="link" data-from="cart" data-to="cart-del" data-tag="侧滑商品 → 删除" data-side="auto"></div>
+    <div class="link" data-from="cart-del" data-to="checkout" data-tag="关闭弹窗·点「去结算」" data-side="auto"></div>
+    <div class="link" data-from="checkout" data-to="pay-success" data-tag="点击「提交订单」" data-side="auto"></div>
+    <div class="link" data-from="home" data-to="search" data-tag="点击搜索栏" data-side="auto"></div>
+    <div class="link" data-from="search" data-to="search-result" data-tag="输入并搜索" data-side="auto"></div>
+    <div class="link" data-from="home" data-to="discover" data-tag="点击「发现」" data-side="auto"></div>
+    <div class="link" data-from="discover" data-to="note-detail" data-tag="点击动态" data-side="auto"></div>
+    <div class="link" data-from="note-detail" data-to="share-menu" data-tag="点右上角「分享」" data-side="auto"></div>
+    <div class="link" data-from="home" data-to="mine" data-tag="点击「我的」" data-side="auto"></div>
+    <div class="link" data-from="mine" data-to="orders" data-tag="点击「订单」" data-side="auto"></div>
+    <div class="link" data-from="orders" data-to="order-detail" data-tag="点击「查看物流」" data-side="auto"></div>
+    <div class="link" data-from="mine" data-to="spend-stats" data-tag="点击「消费统计」" data-side="auto"></div>
+    <div class="link" data-from="home" data-to="stores" data-tag="点击「附近门店」" data-side="auto"></div>
+    <div class="link" data-from="stores" data-to="store-detail" data-tag="点击门店" data-side="auto"></div>
+    <div class="link" data-from="search-result" data-to="pdp" data-tag="点击商品 → 商品详情" data-side="auto" data-dash="1"></div>
+    <div class="link" data-from="note-detail" data-to="pdp" data-tag="点同款 → 商品详情" data-side="auto" data-dash="1"></div>
+
+  </div>
 
   </div><!-- /.canvas -->
   </div><!-- /.zoom-stage -->
 
   <!-- ===================== 标注系统 UI ===================== -->
   <div class="anno-toolbar">
+    <span class="help-wrap">
+      <button id="helpBtn" class="help-btn" title="查看帮助" aria-label="查看帮助">?</button>
+      <span class="help-hint">查看帮助</span>
+      <div class="help-pop" id="helpPop">
+        <h4>这张图怎么用？</h4>
+        <p class="help-lead">每个手机框是一页，框之间的连线表示「点击什么 → 去哪一页」。下面两个模式帮你调整和反馈。</p>
+        <div class="help-sec">
+          <div class="hs-title">⊞ 布局模式 <span class="hs-tag">调整页面位置</span></div>
+          <div class="hs-body">开启后<b>直接拖动手机框</b>换到别的格子，连线会自动重画；拖到已有页面的格子＝两页交换。摆好后点<b>「导出布局」</b>，把位置信息粘回对话框，我据此固化。</div>
+          <div class="hs-why">解决：页面太多排乱了、想换顺序、连线交叉看不清——不用再用文字描述往哪挪，拖一下就行。</div>
+        </div>
+        <div class="help-sec">
+          <div class="hs-title">✎ 标注模式 <span class="hs-tag">写修改意见</span></div>
+          <div class="hs-body">开启后<b>点击任意页面</b>落一个图钉、写下想改/想加的想法（留空自动删除）。写完点<b>「导出标注」</b>，把内容粘回对话框，我按标注逐条改。</div>
+          <div class="hs-why">解决：想要的修改散落在好几页上、口头说不清具体位置——直接点在页面上写，定位准、不漏项。</div>
+        </div>
+      </div>
+    </span>
+    <button id="layoutToggle" class="primary">⊞ 布局模式：关</button>
+    <button id="layoutExport">导出布局</button>
+    <span class="count"><span id="annoCount">0</span> 条标注</span>
     <button id="annoToggle" class="primary">✎ 标注模式：关</button>
-    <span class="count"><span id="annoCount">0</span> 条</span>
     <button id="annoExport">导出标注</button>
     <button id="annoShot">下载截图</button>
     <button id="annoClear" class="danger">清空</button>
@@ -2376,7 +2289,7 @@
 
   <div class="anno-modal-mask" id="annoMask">
     <div class="anno-modal">
-      <h3>导出标注</h3>
+      <h3 id="annoModalTitle">导出标注</h3>
       <p>已自动复制到剪贴板。把下面内容粘贴到对话框发给我即可。</p>
       <textarea id="annoOut" readonly></textarea>
       <div class="actions">
@@ -2579,6 +2492,7 @@
   // ---------- 点击页面新增图钉 ----------
   function onScreenClick(e) {
     if (!annoMode) return;
+    if (layoutMode) return;             // 布局模式下页面用于拖拽，不落图钉
     if (spaceDown || panning) return;   // 空格抓手平移时不落图钉
 
     // 点在已有图钉或正在编辑的气泡内 —— 交给它们自己处理，不新增
@@ -2620,12 +2534,37 @@
   // ---------- 工具栏 ----------
   toggleBtn.addEventListener('click', () => {
     annoMode = !annoMode;
+    if (annoMode && layoutMode) setLayoutMode(false);   // 与布局模式互斥
     body.classList.toggle('anno-on', annoMode);
     toggleBtn.classList.toggle('active', annoMode);
     toggleBtn.textContent = annoMode ? '✎ 标注模式：开' : '✎ 标注模式：关';
   });
 
   document.addEventListener('click', onScreenClick, true);
+
+  // ---------- 帮助浮层：点击 ? 钮展开/收起，点击别处收起 ----------
+  const helpBtn = document.getElementById('helpBtn');
+  const helpPop = document.getElementById('helpPop');
+  if (helpBtn && helpPop) {
+    helpBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = helpPop.classList.toggle('show');
+      helpBtn.classList.toggle('active', open);
+    });
+    helpPop.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', () => {
+      if (helpPop.classList.contains('show')) {
+        helpPop.classList.remove('show');
+        helpBtn.classList.remove('active');
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && helpPop.classList.contains('show')) {
+        helpPop.classList.remove('show');
+        helpBtn.classList.remove('active');
+      }
+    });
+  }
 
   // ---------- 导出 ----------
   const mask = document.getElementById('annoMask');
@@ -2644,11 +2583,19 @@
     return s;
   }
 
-  document.getElementById('annoExport').addEventListener('click', () => {
-    const text = buildExport();
+  const modalTitle = document.getElementById('annoModalTitle');
+  function showExportModal(title, text) {
+    if (modalTitle) modalTitle.textContent = title;
     out.value = text;
     mask.classList.add('show');
     if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+  }
+
+  document.getElementById('annoExport').addEventListener('click', () => {
+    showExportModal('导出标注', buildExport());
+  });
+  document.getElementById('layoutExport').addEventListener('click', () => {
+    showExportModal('导出布局', buildLayoutExport());
   });
   document.getElementById('annoCopy').addEventListener('click', () => {
     out.select();
@@ -2739,106 +2686,27 @@
   bindEditable(document.getElementById('docTitle'), TITLE_KEY);
   bindEditable(document.getElementById('docSubtitle'), SUB_KEY);
 
-  // ---------- 分支连接器：按真实 DOM 坐标绘制折线 + 箭头 + 标注 ----------
-  // 支持任意行数、任意位置分叉、嵌套。对每个 .flow.branched 独立绘制。
-  const SVGNS = 'http://www.w3.org/2000/svg';
-  function drawForks() {
-    document.querySelectorAll('.flow.branched').forEach(flow => {
-      const origin = flow.querySelector(':scope > .stage.origin');
-      const branches = flow.querySelector(':scope > .branches');
-      if (!origin || !branches) return;
-
-      // overlay（SVG 画线）与 tag 容器，复用或新建
-      let overlay = flow.querySelector(':scope > .fork-overlay');
-      if (!overlay) {
-        overlay = document.createElementNS(SVGNS, 'svg');
-        overlay.setAttribute('class', 'fork-overlay');
-        flow.appendChild(overlay);
-      }
-      flow.querySelectorAll(':scope > .fork-tag').forEach(n => n.remove());
-      while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
-
-      const fb = flow.getBoundingClientRect();
-      overlay.setAttribute('viewBox', `0 0 ${fb.width} ${fb.height}`);
-      overlay.setAttribute('width', fb.width);
-      overlay.setAttribute('height', fb.height);
-
-      // 起点：origin 右边缘中点（相对 flow 本地坐标）。
-      // GAP：折线头尾与页面之间的留白，对齐普通箭头两端（约 7px）的观感。
-      const GAP = 7;
-      const orb = origin.getBoundingClientRect();
-      const startX = orb.right - fb.left + GAP;   // 起点离开 origin 右缘 GAP
-      const startY = orb.top + orb.height / 2 - fb.top;
-
-      // 分叉中段 X：起点与第一行页面之间的中点
-      const rows = branches.querySelectorAll(':scope > .branch');
-      if (!rows.length) return;
-      // 各行入口页面（第一个 .screen）的左边缘中点
-      const targets = [];
-      rows.forEach(row => {
-        const screen = row.querySelector('.screen');
-        if (!screen) return;
-        const sb = screen.getBoundingClientRect();
-        targets.push({
-          x: sb.left - fb.left,
-          y: sb.top + sb.height / 2 - fb.top,
-          tag: row.getAttribute('data-tag') || ''
-        });
-      });
-      if (!targets.length) return;
-
-      const ARROW = 6;                 // 箭头头长度，与标准箭头观感一致
-      // 分叉点靠近 origin（距起点 36px），使每行的水平入口线尽量长——
-      // 标注浮在这段长横线上方就有充足空间完整显示，不与垂直主干/相邻行重叠。
-      const midX = startX + 36;
-
-      function addPath(d) {
-        const p = document.createElementNS(SVGNS, 'path');
-        p.setAttribute('d', d);
-        p.setAttribute('stroke-linecap', 'round');
-        p.setAttribute('stroke-linejoin', 'round');
-        overlay.appendChild(p);
-      }
-
-      // 主干：起点水平到分叉点
-      addPath(`M ${startX} ${startY} H ${midX}`);
-      // 垂直贯穿：从最上行到最下行（在 midX 处）
-      const ys = targets.map(t => t.y);
-      addPath(`M ${midX} ${Math.min(...ys, startY)} V ${Math.max(...ys, startY)}`);
-      // 每行：midX 水平到该行入口前（留出箭头），再画箭头头
-      targets.forEach(t => {
-        const tipX = t.x - GAP;           // 箭头尖端距页面左缘 GAP，与普通箭头头尾留白一致
-        addPath(`M ${midX} ${t.y} H ${tipX}`);
-        addPath(`M ${tipX - ARROW} ${t.y - 4} L ${tipX} ${t.y} L ${tipX - ARROW} ${t.y + 4}`);
-        // 标注：紧贴分叉点、置于水平入口线左端上方，距线 10px（与普通箭头 tag↔line 间距一致）
-        if (t.tag) {
-          const tag = document.createElement('div');
-          tag.className = 'fork-tag';
-          tag.textContent = t.tag;
-          tag.style.left = (midX + 8) + 'px';
-          tag.style.top = (t.y - 10) + 'px';
-          flow.appendChild(tag);
-        }
-      });
-    });
-  }
-  // ---------- 跨页连线 drawXlinks：任意两页框之间画正交折线 + 箭头 + tag ----------
-  // 支持多条 xlink 指向同一个目标（天然汇聚）。声明：
-  //   <div class="xlink" data-from="srcId" data-to="dstId" data-tag="说明"
-  //        data-side="auto|right|left|top|bottom" data-dash="1"></div>
+  // ---------- 页面间连线 drawLinks：统一「边」模型 ----------
+  // 收集所有 <div class="link"|"xlink" data-from data-to data-tag data-side data-dash>，
+  // 给每条边画进 .canvas 级 SVG overlay：
+  //   · 同行相邻两页（行相等 + 列相邻 + to 在右）→ 一条水平直箭头（保留主流程清爽横排）；
+  //   · 其余（跨行/跨列/汇聚/返回）→ 障碍物正交布线器自动绕开页面找最短折线。
   // 坐标全部相对 .canvas 本地坐标系（.canvas 已 position:relative）。
-  function drawXlinks() {
+  // 多条边指向同一目标天然汇聚，分走不同端口、互不重叠。
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function drawLinks() {
     const canvas = document.querySelector('.canvas');
     if (!canvas) return;
-    const defs = Array.from(document.querySelectorAll('.xlink'));
+    const defs = Array.from(document.querySelectorAll('.link, .xlink'));
     // overlay 与 tag 容器：复用或新建
-    let overlay = canvas.querySelector(':scope > .xlink-overlay');
+    let overlay = canvas.querySelector(':scope > .link-overlay');
     if (!overlay) {
       overlay = document.createElementNS(SVGNS, 'svg');
-      overlay.setAttribute('class', 'xlink-overlay');
+      overlay.setAttribute('class', 'link-overlay');
       canvas.appendChild(overlay);
     }
-    canvas.querySelectorAll(':scope > .xlink-tag').forEach(n => n.remove());
+    overlay.style.visibility = '';   // 拖拽时曾临时隐藏 overlay，重画时务必恢复可见
+    canvas.querySelectorAll(':scope > .link-tag').forEach(n => n.remove());
     while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
     if (!defs.length) return;
 
@@ -2863,22 +2731,23 @@
       overlay.appendChild(p);
       return p;
     };
-    const addArrow = (x, y, dir) => {
-      // dir: 'r'|'l'|'d'|'u' —— 箭头尖指向的方向
-      let d;
-      if (dir === 'r') d = `M ${x-ARROW} ${y-4} L ${x} ${y} L ${x-ARROW} ${y+4}`;
-      else if (dir === 'l') d = `M ${x+ARROW} ${y-4} L ${x} ${y} L ${x+ARROW} ${y+4}`;
-      else if (dir === 'd') d = `M ${x-4} ${y-ARROW} L ${x} ${y} L ${x+4} ${y-ARROW}`;
-      else d = `M ${x-4} ${y+ARROW} L ${x} ${y} L ${x+4} ${y+ARROW}`;
-      addPath(d);
-    };
     const addTag = (x, y, text) => {
       const tag = document.createElement('div');
-      tag.className = 'xlink-tag';
+      tag.className = 'link-tag';
       tag.textContent = text;
       tag.style.left = x + 'px';
       tag.style.top = y + 'px';
       canvas.appendChild(tag);
+    };
+
+    // 读某个 .stage 的网格坐标 [行,列]（data-cell="行,列"）；无则返回 null
+    const cellOf = (el) => {
+      const stage = el.closest('.stage');
+      if (!stage) return null;
+      const dc = stage.getAttribute('data-cell');
+      if (!dc) return null;
+      const m = dc.split(',').map(s => parseInt(s.trim(), 10));
+      return (m.length === 2 && !isNaN(m[0]) && !isNaN(m[1])) ? { row: m[0], col: m[1] } : null;
     };
 
     // ===== 障碍物正交布线器（A* / Dijkstra）=====
@@ -2886,7 +2755,8 @@
     // 源页与目标页各开「上/下/左/右」四个端口，由最短路算法自动挑「路程短 + 拐弯少 + 不压页」的
     // 进出方向与路径——这正是「按目标四个方向盘点哪个最近、且保证不压页」。任意布局（规整网格 /
     // 嵌套分支的不规则摆放）都不会压页；多条汇聚到同一页的线天然走不同端口与通道，互不重叠。
-    const MARGIN = 16;     // 障碍外扩留白：连线与页面之间至少留这么宽（也是走线通道的半宽依据）
+    const MARGIN = 40;     // 障碍外扩留白：绕行折线与页面之间至少留这么宽（也是走线通道的半宽依据）
+                           // —— 调大让「跨多页绕行」的线离页面更远、不贴边，整体更协调
     const TURN = 60;       // 每个直角拐弯的惩罚（与像素同量纲）——越大越偏好笔直、少弯折
     const EPS = 0.5;
     const screens = Array.from(canvas.querySelectorAll('.screen')).map(rectOf);
@@ -2932,6 +2802,31 @@
       const dashed = def.dataset.dash === '1';
       const ai = idxOf(a), bi = idxOf(b);
       const side = def.dataset.side || 'auto';
+
+      // ===== 特例：同行相邻两页 → 一条水平直箭头（保留主流程清爽横排）=====
+      // 命中条件：两端都有网格坐标、同一行、列相邻(差 1)、目标在源右侧、且中间无障碍。
+      // 仅在 data-side=auto（默认）时启用——显式指定进入边的留给布线器。
+      if (side === 'auto') {
+        const ca = cellOf(from), cb2 = cellOf(to);
+        if (ca && cb2 && ca.row === cb2.row && cb2.col - ca.col === 1) {
+          const y = a.cy;                       // 用源页纵向中点
+          const x1 = a.x + a.w + GAP;           // 离开源右缘
+          const x2 = b.x - GAP;                 // 抵达目标左缘前
+          // 中间是否有「除源/目标外」的页面挡路（源/目标自身的 MARGIN 区不算）
+          let blocked = false;
+          for (let i = 0; i < obstacles.length; i++) {
+            if (i === ai || i === bi) continue;
+            const o = obstacles[i];
+            if (y > o.y1 + EPS && y < o.y2 - EPS && x1 < o.x2 - EPS && x2 > o.x1 + EPS) { blocked = true; break; }
+          }
+          if (x2 - x1 > ARROW && !blocked) {
+            addPath(`M ${x1} ${y} H ${x2}`, dashed);
+            // 只画线、不画箭头；说明文字压在线中点上（tag 自带 --bg 底色遮住其下的线）
+            if (def.dataset.tag) addTag((x1 + x2) / 2, y, def.dataset.tag);
+            return;   // 这条边画完，跳过布线器
+          }
+        }
+      }
 
       let srcPorts = portsOf(a);
       let dstPorts = portsOf(b);
@@ -3025,15 +2920,14 @@
       }
       clean.push(pts[pts.length-1]);
 
-      // 绘制
+      // 绘制：只画线、不画箭头
       let d = `M ${clean[0][0]} ${clean[0][1]}`;
       for (let t = 1; t < clean.length; t++) d += ` L ${clean[t][0]} ${clean[t][1]}`;
       addPath(d, dashed);
-      const end = clean[clean.length-1];
-      addArrow(end[0], end[1], goalPort.arrow);
 
-      // 标注：挂在「最长的那段」中点上方，通常落在通道里、不压页
+      // 标注：压在「最长的那段」中点上（tag 自带 --bg 底色遮住其下的线，保证可读）
       if (def.dataset.tag) {
+        const end = clean[clean.length-1];
         let best = 0, bx = end[0], by = end[1];
         for (let t = 1; t < clean.length; t++) {
           const len = Math.abs(clean[t][0]-clean[t-1][0]) + Math.abs(clean[t][1]-clean[t-1][1]);
@@ -3046,7 +2940,7 @@
 
   // ---------- 画布缩放 ----------
   // 机制：缩放用 CSS transform: scale(Z) 作用在 .canvas 上；.zoom-stage 的尺寸 = 画布原始尺寸 × Z，
-  // 让 body 滚动条跟随缩放后的视觉大小。连线(drawForks/drawXlinks)用 getBoundingClientRect 实测像素，
+  // 让 body 滚动条跟随缩放后的视觉大小。连线(drawLinks)用 getBoundingClientRect 实测像素，
   // 若在缩放态下测量，写入 SVG/tag 的像素会被 transform 二次缩放而错位——故 redrawConnectors 总是
   // 先把 transform 设回 none、在 1:1 坐标系下绘制、再恢复 scale(Z)，连线随整体均匀缩放，永不错位。
   const stage = document.querySelector('.zoom-stage');
@@ -3059,8 +2953,7 @@
   // 在 1:1 坐标系下重画连线，再恢复当前缩放
   function redrawConnectors() {
     if (canvas) canvas.style.transform = 'none';
-    drawForks();
-    drawXlinks();
+    drawLinks();
     if (canvas) canvas.style.transform = 'scale(' + Z + ')';
   }
 
@@ -3164,12 +3057,165 @@
   window.addEventListener('blur', () => {
     spaceDown = false; panning = false;
     document.body.classList.remove('space-pan', 'space-panning');
+    // 拖拽中途失焦（如 alt-tab 切走）：复位被拖的页并重画，避免连线一直藏着
+    if (dragStage) {
+      dragStage.style.transform = '';
+      dragStage.classList.remove('dragging');
+      dragStage = null;
+      redrawConnectors();
+    }
   });
 
+  // ---------- 布局模式：拖动页面卡片重排网格坐标 ----------
+  // 机制：每个 .stage 用 data-cell="行,列" 声明位置，JS 转成 grid-row/grid-column。
+  // 拖动时用 transform 跟手（不改 grid、不触发 reflow），松手时算落点格 → 交换/落位 → 重画连线。
+  let layoutMode = false;
+  let dragStage = null, dragStartX = 0, dragStartY = 0, dragMoved = false;
+
+  // 解析 / 写入某个 .stage 的网格坐标
+  function getCell(stage) {
+    const dc = stage.getAttribute('data-cell');
+    if (!dc) return null;
+    const m = dc.split(',').map(s => parseInt(s.trim(), 10));
+    return (m.length === 2 && !isNaN(m[0]) && !isNaN(m[1])) ? { row: m[0], col: m[1] } : null;
+  }
+  function setCell(stage, row, col) {
+    stage.setAttribute('data-cell', row + ',' + col);
+    stage.style.gridRow = row;
+    stage.style.gridColumn = col;
+  }
+
+  // 启动布局：把已有 data-cell 同步成 inline grid；给漏写坐标的页面顺序补空格（不与已占用冲突）
+  function layoutInit() {
+    const stages = Array.from(document.querySelectorAll('.flow > .stage'));
+    const occupied = new Set();
+    const need = [];
+    stages.forEach(st => {
+      const c = getCell(st);
+      if (c) { setCell(st, c.row, c.col); occupied.add(c.row + ',' + c.col); }
+      else need.push(st);
+    });
+    // 补格：第 1 行从左往右扫空格放置（退化成一行横排，互不重叠）
+    let row = 1, col = 1;
+    need.forEach(st => {
+      while (occupied.has(row + ',' + col)) col++;
+      setCell(st, row, col);
+      occupied.add(row + ',' + col);
+      col++;
+    });
+  }
+
+  // 落点 → 最近网格坐标：用各 .stage 的实测中心建「行 y 带 / 列 x 带」，按像素距离取最近。
+  // 落点超出最外侧带半个步距时，按步距外推一格（可拖到相邻空格）。坐标钳在 ≥1。
+  function dropCell(clientX, clientY) {
+    const stages = Array.from(document.querySelectorAll('.flow > .stage'));
+    const rowC = new Map(), colC = new Map();   // 行/列 -> 中心坐标累计 [sum, n]
+    stages.forEach(st => {
+      if (st === dragStage) return;
+      const c = getCell(st); if (!c) return;
+      const r = st.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const a = colC.get(c.col) || [0, 0]; colC.set(c.col, [a[0] + cx, a[1] + 1]);
+      const b = rowC.get(c.row) || [0, 0]; rowC.set(c.row, [b[0] + cy, b[1] + 1]);
+    });
+    const bands = (m) => Array.from(m, ([k, v]) => [k, v[0] / v[1]]).sort((p, q) => p[1] - q[1]);
+    const cols = bands(colC), rows = bands(rowC);
+    const pick = (bs, p, fallbackPitch) => {
+      if (!bs.length) return 1;
+      let best = bs[0][0], bd = Math.abs(bs[0][1] - p);
+      for (const [k, c] of bs) { const d = Math.abs(c - p); if (d < bd) { bd = d; best = k; } }
+      // 外推：超出最外带半个步距 → 往该方向加/减一格
+      const pitch = bs.length >= 2 ? (bs[bs.length - 1][1] - bs[0][1]) / (bs[bs.length - 1][0] - bs[0][0]) : fallbackPitch;
+      const first = bs[0], last = bs[bs.length - 1];
+      if (p < first[1] - pitch / 2) return Math.max(1, first[0] - Math.round((first[1] - p) / pitch));
+      if (p > last[1] + pitch / 2) return last[0] + Math.round((p - last[1]) / pitch);
+      return best;
+    };
+    return {
+      row: Math.max(1, pick(rows, clientY, (812 + 96) * Z)),
+      col: Math.max(1, pick(cols, clientX, (375 + 132) * Z))
+    };
+  }
+
+  function setLayoutMode(on) {
+    layoutMode = on;
+    if (on && annoMode) {   // 与标注互斥
+      annoMode = false;
+      body.classList.remove('anno-on');
+      toggleBtn.classList.remove('active');
+      toggleBtn.textContent = '✎ 标注模式：关';
+    }
+    body.classList.toggle('layout-on', layoutMode);
+    layoutBtn.classList.toggle('active', layoutMode);
+    layoutBtn.textContent = layoutMode ? '⊞ 布局模式：开' : '⊞ 布局模式：关';
+  }
+  const layoutBtn = document.getElementById('layoutToggle');
+  layoutBtn.addEventListener('click', () => setLayoutMode(!layoutMode));
+
+  // 拖拽：捕获阶段抢在标注落点之前；优先级 空格平移 > 布局拖拽
+  window.addEventListener('mousedown', (e) => {
+    if (!layoutMode || spaceDown) return;
+    const st = e.target.closest('.flow > .stage');
+    if (!st) return;
+    dragStage = st; dragStartX = e.clientX; dragStartY = e.clientY; dragMoved = false;
+    e.preventDefault();
+  }, true);
+  window.addEventListener('mousemove', (e) => {
+    if (!dragStage) return;
+    const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+    if (!dragMoved && Math.abs(dx) + Math.abs(dy) < 4) return;   // 抖动阈值
+    if (!dragMoved) {
+      dragMoved = true;
+      dragStage.classList.add('dragging');
+      const ov = canvas && canvas.querySelector(':scope > .link-overlay');
+      if (ov) ov.style.visibility = 'hidden';
+      canvas.querySelectorAll(':scope > .link-tag').forEach(n => n.style.visibility = 'hidden');
+    }
+    // 元素在 scale(Z) 内，视觉位移 (dx,dy) 对应未缩放平移 (dx/Z,dy/Z)
+    dragStage.style.transform = 'translate(' + (dx / Z) + 'px,' + (dy / Z) + 'px)';
+  });
+  window.addEventListener('mouseup', (e) => {
+    if (!dragStage) return;
+    const st = dragStage; dragStage = null;
+    st.style.transform = '';
+    st.classList.remove('dragging');
+    if (dragMoved) {
+      const from = getCell(st);
+      const target = dropCell(e.clientX, e.clientY);
+      // 目标格被别的页占用 → 两页交换；否则直接落位
+      const occupant = Array.from(document.querySelectorAll('.flow > .stage')).find(o => {
+        if (o === st) return false;
+        const c = getCell(o); return c && c.row === target.row && c.col === target.col;
+      });
+      if (occupant && from) setCell(occupant, from.row, from.col);
+      setCell(st, target.row, target.col);
+      applyZoom();   // 重算 stage 尺寸 + 重画连线（内部恢复 overlay 可见）
+    }
+    e.stopPropagation();
+  }, true);
+
+  // 导出布局：把各页面 id + data-cell 整理成可贴回 AI 的文本（复用导出弹窗）
+  function buildLayoutExport() {
+    const stages = Array.from(document.querySelectorAll('.flow > .stage'));
+    if (!stages.length) return '（暂无页面）';
+    const fileName = location.pathname.split('/').pop() || '原型文件';
+    let s = '我在浏览器里调整了页面布局，请据此更新 ' + fileName + ' 中各 .stage 的 data-cell：\n\n';
+    stages.forEach(st => {
+      const screen = st.querySelector('.screen');
+      const id = screen ? (screen.id || '(无id)') : '(无screen)';
+      const label = st.querySelector('.stage-label');
+      const name = label ? label.textContent.trim() : '';
+      const c = getCell(st);
+      s += '[' + id + '] ' + name + ' → data-cell="' + (c ? c.row + ',' + c.col : '?') + '"\n';
+    });
+    s += '\n（未列出的页面坐标不变；请把每个 .stage 的 data-cell 改成上面对应的值）';
+    return s;
+  }
+
   // 布局稳定后绘制；窗口缩放、字体/图标加载后重绘（缩放态下也会经 applyZoom 重算 stage 尺寸 + 连线）
-  function scheduleDrawForks() { requestAnimationFrame(() => requestAnimationFrame(() => applyZoom())); }
-  window.addEventListener('resize', scheduleDrawForks);
-  window.addEventListener('load', scheduleDrawForks);
+  function scheduleRedraw() { requestAnimationFrame(() => requestAnimationFrame(() => applyZoom())); }
+  window.addEventListener('resize', scheduleRedraw);
+  window.addEventListener('load', scheduleRedraw);
 
   // ---------- 图标急救：检测图标库是否加载失败，失败则浮现求助入口 ----------
   // 原理：Lucide 成功时会把 <i data-lucide> 全部替换成 <svg>；若失败，<i> 会残留，
@@ -3214,8 +3260,9 @@
   // ---------- 初始化 ----------
   save();
   renderAll();
+  layoutInit();         // 把 data-cell 同步成 inline grid；漏写坐标的页面自动补空格
   applyZoom();          // 同步设好 stage 尺寸，避免绝对定位的 canvas 让 stage 首帧塌缩
-  scheduleDrawForks();
+  scheduleRedraw();
 })();
 </script>
 

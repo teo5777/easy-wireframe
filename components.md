@@ -4,152 +4,89 @@
 > 不要额外写样式。只替换文案、图标名(`data-lucide`)、数值。
 > 图标名清单见 `design-system.md` 第四节。
 >
-> **目录**：0 流程骨架 · 0.5 分支（含 0.5.1 嵌套子分叉）· 0.6 跨页连线 xlink · 1 导航栏 · 2 列表/入口 · 3 对话 · 4 统计图表（柱状图）·
+> **目录**：0 页面摆放（网格坐标）· 0.5 页面连接（统一 .link 边）· 1 导航栏 · 2 列表/入口 · 3 对话 · 4 统计图表（柱状图）·
 > **5 扩展组件**（Tab Bar / 搜索栏 / 分段 / 卡片 / 宫格 / 横滑 / Banner / 媒体列表 /
 > 商品卡 / CTA / 评分 / Feed / 表单 / 胶囊 / 时间线 / 空状态 / **地图 / 折线图 / 圆环图** /
 > **浮层（弹窗 / 半屏弹层 / 操作菜单 / Toast）**）。
 
 ---
 
-## 0. 流程骨架：页面 + 箭头怎么串
+## 0. 页面摆放：网格坐标 `data-cell`
 
-一个完整流程 = `.stage`（页面） + `.arrow`（流转） + `.stage` + `.arrow` + …
-每个 `.stage` 顶部是带圈编号的 `.stage-label`（① ② ③ ④ ⑤ …）。
+页面用 **CSS Grid 网格坐标**摆放，不再靠 DOM 顺序。每个页面是一个 `.stage`，
+顶部带圈编号 `.stage-label`（① ② ③ …），用 `data-cell="行,列"` 声明它在网格里的位置，
+内含一个**带唯一 `id`** 的 `.screen`（连线靠 id 找两端，所以 id 是必须的）。
 
 ```html
-<div class="stage">
-  <div class="stage-label">① 页面名</div>
-  <div class="screen">
+<div class="stage" data-cell="1,1">
+  <div class="stage-label">① 首页</div>
+  <div class="screen" id="home">
     <!-- navbar + body 内容 -->
   </div>
 </div>
 
-<!-- 箭头：连接前后两页，tag 写清点击了什么 -->
-<div class="arrow">
-  <div class="tag">点击「xxx」</div>
-  <div class="line">
-    <svg viewBox="0 0 104 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M0 6 H102 M97 2 L102 6 L97 10"
-            stroke="currentColor" stroke-width="1"
-            stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
+<div class="stage" data-cell="1,2">
+  <div class="stage-label">② 列表</div>
+  <div class="screen" id="list">
+    <!-- … -->
   </div>
 </div>
 ```
+
+**坐标怎么排**
+- `data-cell="行,列"`：行从 1 起、自上而下；列从 1 起、自左而右。行 1 一般放主流程，
+  支线（搜索 / 发现 / 我的 …）各占一行（行 2、行 3 …）。
+- **主流程同一行从左往右铺**：`1,1` → `1,2` → `1,3` …，它们之间会自动画一条**水平直线**（线上压说明文字、无箭头）。
+- **新增页面 = 追加一个 `.stage` + 给一个空格坐标，其它页一律不用动**。这是网格相对旧布局的最大好处：
+  加页不会再让整张图重排错乱。
+- **漏写 `data-cell` 不会报错**：脚本启动时会把没坐标的页面顺序补到空格里（退化成一行横排、互不重叠）。
+  但**能写就写**——精确坐标才好控制版面。
+- **可拖拽微调**：生成的 HTML 在浏览器里打开后，点工具栏「布局模式」即可直接拖动页面卡片换位置
+  （拖到已占用格 = 两页交换），满意后点「导出布局」把坐标贴回对话框，我据此固化 `data-cell`。
 
 ---
 
-## 0.5 分支流程（一个来源分出多条路线）
+## 0.5 页面连接：统一的 `.link` 边
 
-当**同一个页面分出多条不同路线**（如首页有两个入口、某页之后流程分叉）时，
-不要把所有页面挤在一行——那会让人误以为是顺序流转。改用**分支布局**：来源页在左，
-向右分出**多行**，每行一条子流程，连线由 JS 自动绘制（折线 + 标准箭头 + 标注）。
+所有页面间的跳转都用**同一种声明** `.link`：给两端 `.screen` 各一个 `id`，再放一个 `.link` 元素。
+脚本(`drawLinks`)按真实坐标自动画线——**只画线、不画箭头**，方向靠左→右 / 上→下的摆位和线上文字表达：
 
-**结构**：`.flow` 加 `branched` 类 → 来源页 `.stage.origin` → 占位 `.fork` → `.branches`（内含多个 `.branch` 行）。
-每个 `.branch` 用 `data-tag` 写该分支的点击动作。
-
-```html
-<div class="flow branched">
-
-  <!-- 分叉来源页（连线从它右侧中点发出；可以是第①页，也可以是中间任意页） -->
-  <div class="stage origin">
-    <div class="stage-label">① 首页</div>
-    <div class="screen"><!-- … --></div>
-  </div>
-
-  <!-- 占位列：连线由脚本自动画进 SVG overlay，这里留空即可 -->
-  <div class="fork"></div>
-
-  <!-- 多条分支，每行一条子流程；data-tag = 进入该分支的点击动作 -->
-  <div class="branches">
-    <div class="branch" data-tag="点击「大理」">
-      <div class="stage"> … 第②页 … </div>
-      <div class="arrow"><!-- 行内后续页用普通箭头 --></div>
-      <div class="stage"> … 第③页 … </div>
-    </div>
-    <div class="branch" data-tag="点击「我的行程」">
-      <div class="stage"> … 第⑤页 … </div>
-    </div>
-    <!-- 需要几行就加几个 .branch，没有数量限制 -->
-  </div>
-</div>
-```
-
-**要点**
-- **任意行数**：`.branches` 里放 N 个 `.branch` 即可，连线自动适配。
-- **中间分叉**：`.flow.branched` 不一定从第①页开始——把分叉点那页设为 `.stage.origin`，前面可照常接 `.stage`+`.arrow`。
-- **嵌套**：`.branch` 内部可以再放一个完整的 `.flow.branched`（某条分支自己又分叉），连线会逐层自动绘制。
-- **连线全自动**：`.fork` 留空、`data-tag` 写文案，就这两件事。折线、箭头头、标注位置都由脚本按真实坐标算，与行数/各行高度/分叉位置无关。
-- 分支内每行的**后续页面**之间，仍用普通 `.arrow`（见上一节）。
-
-### 0.5.1 嵌套子分叉（某条分支自己又分出多支）
-
-当一条分支内部还要再分叉时（如「我的」页既能进订单、也能进消费统计），把该分支的**首页**设为
-新的 `.stage.origin`，在 `.branch` 内放一个完整的 `.flow.branched`。连线逐层自动绘制。
+- **同一行相邻两页**（行相同、列差 1、目标在右）→ 自动画一条**水平直线**，`data-tag` 文字压在线中点上。
+- **其余所有情况**（跨行、跨列、隔页、多入口汇聚、返回）→ 自动走**障碍物正交布线器**：把每个页面当
+  障碍矩形，用最短路（Dijkstra + 拐弯惩罚）在页面空隙里找一条**不穿任何页面、拐弯最少**的正交折线，
+  且与沿途页面留出足够间距、不贴边。
 
 ```html
-<div class="branch" data-tag="点击「我的」">
-  <div class="flow branched">          <!-- 嵌套：我的页再分两支 -->
-    <div class="stage origin">…⑫ 我的…</div>
-    <div class="fork"></div>
-    <div class="branches">
-      <div class="branch" data-tag="点击「订单」">
-        <div class="stage">…⑬ 订单列表…</div>
-        <div class="arrow">…查看物流…</div>
-        <div class="stage">…⑭ 订单详情…</div>
-      </div>
-      <div class="branch" data-tag="点击「消费统计」">
-        <div class="stage">…⑮ 消费统计…</div>
-      </div>
-    </div>
-  </div>
-</div>
-```
+<!-- 1) 两端 .screen 都要有 id（见上一节） -->
+<div class="screen" id="home"> … </div>
+<div class="screen" id="pdp"> …商品详情… </div>
+<div class="screen" id="search-result"> …搜索结果… </div>
 
-> 嵌套子树会占较高的垂直空间（子分支越多越高），属正常现象——内容尽量精简即可。
-
----
-
-## 0.6 跨页连线 xlink（任意两页相连 / 多条汇聚到同一页）
-
-普通箭头(`.arrow`)和分支(`.fork`)都是**顺序/发散**关系。当需要**非相邻的两页相连**，或
-**多个入口指向同一个页面**（如「商品列表」和「搜索结果」都能进入同一个「商品详情」）时，
-用 `xlink`：给目标页 `.screen` 加 `id`，再在 `.flow`/`.canvas` 同级放一个声明，脚本自动按真实坐标画正交折线+箭头+标注。
-
-```html
-<!-- 1) 给会被指向的页面 .screen 加 id -->
-<div class="screen" id="pdp"> …④ 商品详情… </div>
-…
-<div class="screen" id="search-result"> …⑨ 搜索结果… </div>
-
-<!-- 2) 在 .canvas 内（通常放在 .flow 之后）声明连线；可放多条指向同一 id（汇聚） -->
-<div class="xlink" data-from="search-result" data-to="pdp"
-     data-tag="点击商品 → 商品详情" data-side="auto" data-dash="1"></div>
+<!-- 2) 在 .flow 内（通常放在所有 .stage 之后）声明连线 -->
+<!-- 同行相邻：自动水平直线 + 线上文字 -->
+<div class="link" data-from="home" data-to="list" data-tag="点击「进入」"></div>
+<!-- 跨页 / 汇聚：自动绕页折线；多条指向同一 id 即汇聚 -->
+<div class="link" data-from="search-result" data-to="pdp"
+     data-tag="点击商品 → 详情" data-side="auto" data-dash="1"></div>
 ```
 
 **参数**
-- `data-from` / `data-to`：起点、终点元素的 `id`（任意块都行，通常是 `.screen`）。
-- `data-tag`：连线上的说明文字（可省）。
-- `data-side`：约束**目标页的进入边**，`auto`(默认，由布线器自动选最优边) / `right` / `left` / `top` / `bottom`。
-- `data-dash="1"`：画成虚线，用来区分「次要/跨区/返回」类跳转（实线留给主流程）。
+- `data-from` / `data-to`：起点、终点 `.screen` 的 `id`。
+- `data-tag`：连线上的说明文字，写清「点击了什么」（可省）。
+- `data-side`：约束**目标页进入边**，`auto`(默认) / `left` / `right` / `top` / `bottom`。一般留 `auto`。
+- `data-dash="1"`：画成虚线，用来区分「次要 / 跨区 / 返回」类跳转（实线留给主流程）。
 
-**自动布线 · 永不压页（关键，默认就开）**
-连线由一个**障碍物正交布线器**绘制：把每个页面当成「障碍矩形」（向外扩一圈留白），用最短路算法
-（Dijkstra + 拐弯惩罚）在页面之间的**空隙**里找一条正交折线。源页与目标页各开「上 / 下 / 左 / 右」
-四个端口，算法自动挑**路程最短、拐弯最少、且不穿过任何页面**的进出方向与路径——这就是「按目标四个
-方向盘点哪个最近、又保证不压页」。
-
-- **任意布局都不压页**：无论规整网格还是嵌套分支的不规则摆放，连线只走空隙，绝不穿过页面卡片。
-- **方向清晰、弯折最少**：拐弯有惩罚，算法优先走直；只有被页面挡住时才拐，且总拐弯数最小。
-- **汇聚不打架**：多条指向同一页的线会自然选不同端口/通道进入，互不重叠。
-- **就近进入**：目标在右就从左边进、在下就从上/下边进，由算法按实际几何决定，无需手填。
+**自动布线 · 永不压页**
+- **任意布局都不压页**：连线只走页面之间的空隙，绝不穿过页面卡片。
+- **方向清晰、弯折最少**：拐弯有惩罚，优先走直，被挡住才拐，总拐弯数最小。
+- **汇聚不打架**：多条指向同一页的线自然选不同端口/通道进入，互不重叠。
+- **就近进入**：`auto` 下由算法按实际几何选最优进入边，无需手填 `data-side`。
 
 **要点**
-- **汇聚**：多条 `xlink` 的 `data-to` 指向同一个 `id` 即可，无需改目标页本身。
-- 连线画在 `.canvas` 级 overlay 上，**可跨行、跨分支**；与 `.arrow`/`.fork` 共存、互不干扰。
-- 截图正常（用内联 path，非 `<use>`）。窗口缩放自动重绘。
-- 主流程仍优先用顺序 `.arrow` 和分支 `.fork`；`xlink` 用于它们表达不了的「跨越」与「汇聚」。
-- 一般**不用手动指定 `data-side`**——`auto` 已能选最优进入边并避让所有页面；只有想强制从某一边进入时才设。
+- 每条跳转一个 `.link`；表达「一页分出多条路线」就放多条 `data-from` 相同的 `.link`。
+- 连线画在 `.canvas` 级 overlay，可跨行、跨列；截图正常、缩放/拖拽后自动重绘。
+- **全部只画线、不画箭头**；`data-tag` 文字带页面底色压在线上，列间距已留足让线比文字更长、不会被文字盖满。
+- 旧的 `.xlink` 仍被识别（向后兼容），新文件统一用 `.link`。
 
 ---
 
@@ -840,20 +777,22 @@
 - `.dialog` 按钮、`.sheet-foot` 里的按钮都直接用既有 `.btn`（含本次新增的 `.btn.danger` 危险态）。
 - `.sheet-bd` 里随意嵌 `.form-field` / `.chips` / `.list-item` / `.product-grid` 等已有组件，不必新写。
 - **Toast 不需要遮罩**，直接把 `.toast` 放进 `.screen` 即可；其余三种都要外层 `.sheet-mask`。
-- 想表达「点击某项弹出此浮层」，给**带浮层的那一页**单独画一帧，用 `.arrow` 从触发页指过来即可。
+- 想表达「点击某项弹出此浮层」，给**带浮层的那一页**单独画一帧，用 `.link` 从触发页指过来即可。
 
 ---
 
 ## 拼装清单（自检）
 
-- [ ] 每个 `.stage` 有唯一编号 `.stage-label`（① ② ③ …）
-- [ ] 相邻两页之间都有一个 `.arrow`，`.tag` 写清「点击了什么」
+- [ ] 每个 `.stage` 有唯一编号 `.stage-label`（① ② ③ …）和 `data-cell="行,列"` 坐标
+- [ ] 每个 `.screen` 有**唯一 `id`**（连线靠 id 连两端）
+- [ ] 页面间每个跳转都有一个 `.link`，`data-tag` 写清「点击了什么」；同行相邻自动走水平直线、其余自动绕页（只画线不画箭头）
+- [ ] 主流程铺在同一行（`1,1`→`1,2`→…）；支线各占一行，避免把支线挤进主流程行
 - [ ] 首页导航用 ghost 占位居中；次级页左侧是 `chevron-left`
 - [ ] 图标名都来自 Lucide（拼错会显示空白）
 - [ ] 没有改动 `<style>` 里的任何数值
 - [ ] 用了扩展组件时：贴底的 `.tabbar` / `.cta-bar` 放在 `.screen` **最后**，且二者不同时出现
 - [ ] 底部按钮各占一行 / 主按钮配弱化小字时，用 `.cta-bar.stack`（+ `.cta-hint`），不靠堆多个 `.cta-bar`——按钮高度才不会被压矮
-- [ ] 跨页 `xlink` 优先用 `data-side="auto"`：中间夹页时会自动绕场外，不要手动改 side 去硬绕
+- [ ] 跨页 `.link` 优先用 `data-side="auto"`：中间夹页时会自动绕场外，不要手动改 side 去硬绕；返回/次要跳转加 `data-dash="1"`
 - [ ] 浮层（`.dialog`/`.sheet`/`.action-sheet`/`.toast`）放进所属 `.screen` 内、作为内容之后的子节点；除 Toast 外都套一层 `.sheet-mask`，一页一般只放一个浮层
 - [ ] `.tabbar` 全页只有一个 `.tab.active`；`.segment`/`.chips` 的选中态也唯一
 - [ ] 商品卡按两列摆放（偶数个最齐）；宫格按 4 的倍数最齐
