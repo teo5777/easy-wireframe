@@ -71,15 +71,19 @@ npx skills add https://github.com/teo5777/easy-wireframe --skill easy-wireframe
 
 ## 安装
 
-**Claude Code**：复制或克隆到 skills 目录，之后输入 `/easy-wireframe` 使用。
+推荐用上面的 `npx skills add`。手动安装时，**skill 文件在仓库的 `easy-wireframe/` 子目录里**，整目录放进 skills 目录即可：
 
 ```bash
-git clone https://github.com/teo5777/easy-wireframe.git ~/.claude/skills/easy-wireframe
+# 克隆后把子目录复制到 Claude Code 的 skills 目录
+git clone https://github.com/teo5777/easy-wireframe.git /tmp/ew
+cp -R /tmp/ew/easy-wireframe ~/.claude/skills/easy-wireframe
 ```
 
-**Codex**：相同 `SKILL.md` 约定，放入 `.codex/skills/easy-wireframe/` 即可。
+之后输入 `/easy-wireframe` 使用。Codex 同理，把 `easy-wireframe/` 子目录放进 `.codex/skills/` 即可。
 
-**其他编码 Agent**（Cursor / Kimi Code / OpenCode / Gemini CLI 等）：把仓库链接发给 Agent，让它从 `SKILL.md` 入手、按需加载其引用的支持文件。
+> ⚠ 务必把**整个 `easy-wireframe/` 子目录**（含 `template.html` 等 5 个文件）一起装好——只装 `SKILL.md` 会导致生成的原型功能残缺（拖拽、连线、帮助等失效）。
+
+**其他编码 Agent**（Cursor / Kimi Code / OpenCode / Gemini CLI 等）：把仓库链接发给 Agent，让它从 `easy-wireframe/SKILL.md` 入手、按需加载同目录的支持文件。
 
 > 普通无文件系统 / 浏览器的 Chatbot 不推荐——难以稳定产出完整流程图。
 
