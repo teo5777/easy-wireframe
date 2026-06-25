@@ -1207,6 +1207,9 @@
   /* 布局模式：可拖动页面卡片重排网格位置 */
   body.layout-on .stage { cursor: grab; }
   body.layout-on .stage * { cursor: grab; }
+  /* 布局模式给画布外圈多留一圈空地，方便把边缘页往外拖出新格（配合拖到边缘自动滚动） */
+  .canvas { transition: padding .18s ease; }
+  body.layout-on .canvas { padding: 320px 360px; }
   .stage.dragging {
     cursor: grabbing;
     z-index: 100;
@@ -2460,8 +2463,9 @@
   window.addEventListener('blur', () => {
     spaceDown = false; panning = false;
     document.body.classList.remove('space-pan', 'space-panning');
-    // 拖拽中途失焦（如 alt-tab 切走）：复位被拖的页并重画，避免连线一直藏着
+    // 拖拽中途失焦（如 alt-tab 切走）：停掉自动滚动、复位被拖的页并重画，避免连线一直藏着
     if (dragStage) {
+      if (autoScrollRAF) { cancelAnimationFrame(autoScrollRAF); autoScrollRAF = 0; }
       dragStage.style.transform = '';
       dragStage.classList.remove('dragging');
       dragStage = null;
@@ -2508,35 +2512,28 @@
     });
   }
 
-  // 落点 → 最近网格坐标：用各 .stage 的实测中心建「行 y 带 / 列 x 带」，按像素距离取最近。
-  // 落点超出最外侧带半个步距时，按步距外推一格（可拖到相邻空格）。坐标钳在 ≥1。
+  // 落点 → 最近网格坐标。
+  // 关键：不再吸附「已占用的行列带」（那样空出来的内侧格落不进去、只能跟相邻页交换）。
+  // 改为「拿一个已知页当锚点 + 固定步距，把落点连续映射成格号再四舍五入」——
+  // 空的内侧格、外侧新格、已占用格（=交换）都用同一套线性公式，任意横移/纵移都成立。
   function dropCell(clientX, clientY) {
     const stages = Array.from(document.querySelectorAll('.flow > .stage'));
-    const rowC = new Map(), colC = new Map();   // 行/列 -> 中心坐标累计 [sum, n]
-    stages.forEach(st => {
-      if (st === dragStage) return;
-      const c = getCell(st); if (!c) return;
+    // 步距：列 = 列宽 + column-gap，行 = 行高估值 + row-gap（均为 1:1 布局值，乘 Z 得屏幕像素）
+    const colPitch = (375 + 180) * Z;
+    const rowPitch = (812 + 132) * Z;
+    // 锚点：任取一个非拖拽页，记下它的格号与屏幕中心；据此把落点反推成格号
+    let anchor = null;
+    for (const st of stages) {
+      if (st === dragStage) continue;
+      const c = getCell(st); if (!c) continue;
       const r = st.getBoundingClientRect();
-      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-      const a = colC.get(c.col) || [0, 0]; colC.set(c.col, [a[0] + cx, a[1] + 1]);
-      const b = rowC.get(c.row) || [0, 0]; rowC.set(c.row, [b[0] + cy, b[1] + 1]);
-    });
-    const bands = (m) => Array.from(m, ([k, v]) => [k, v[0] / v[1]]).sort((p, q) => p[1] - q[1]);
-    const cols = bands(colC), rows = bands(rowC);
-    const pick = (bs, p, fallbackPitch) => {
-      if (!bs.length) return 1;
-      let best = bs[0][0], bd = Math.abs(bs[0][1] - p);
-      for (const [k, c] of bs) { const d = Math.abs(c - p); if (d < bd) { bd = d; best = k; } }
-      // 外推：超出最外带半个步距 → 往该方向加/减一格
-      const pitch = bs.length >= 2 ? (bs[bs.length - 1][1] - bs[0][1]) / (bs[bs.length - 1][0] - bs[0][0]) : fallbackPitch;
-      const first = bs[0], last = bs[bs.length - 1];
-      if (p < first[1] - pitch / 2) return Math.max(1, first[0] - Math.round((first[1] - p) / pitch));
-      if (p > last[1] + pitch / 2) return last[0] + Math.round((p - last[1]) / pitch);
-      return best;
-    };
+      anchor = { row: c.row, col: c.col, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+      break;
+    }
+    if (!anchor) return { row: 1, col: 1 };
     return {
-      row: Math.max(1, pick(rows, clientY, (812 + 96) * Z)),
-      col: Math.max(1, pick(cols, clientX, (375 + 132) * Z))
+      row: Math.max(1, anchor.row + Math.round((clientY - anchor.cy) / rowPitch)),
+      col: Math.max(1, anchor.col + Math.round((clientX - anchor.cx) / colPitch))
     };
   }
 
@@ -2551,21 +2548,57 @@
     body.classList.toggle('layout-on', layoutMode);
     layoutBtn.classList.toggle('active', layoutMode);
     layoutBtn.textContent = layoutMode ? '⊞ 布局模式：开' : '⊞ 布局模式：关';
+    // 留白随模式切换（有 .18s 过渡）：立即重算一次撑出滚动尺寸，过渡结束再画一次对齐连线
+    applyZoom();
+    setTimeout(applyZoom, 200);
   }
   const layoutBtn = document.getElementById('layoutToggle');
   layoutBtn.addEventListener('click', () => setLayoutMode(!layoutMode));
 
   // 拖拽：捕获阶段抢在标注落点之前；优先级 空格平移 > 布局拖拽
+  // dragStartX/Y 记的是「文档坐标」(clientX + scrollX)，这样自动滚动改变 scroll 时，
+  // 即便光标不动，文档坐标也在变，页面 transform 会持续跟手、不脱手。
+  let lastClientX = 0, lastClientY = 0, autoScrollRAF = 0;
+  function updateDragTransform() {
+    if (!dragStage) return;
+    const dx = (lastClientX + window.scrollX) - dragStartX;
+    const dy = (lastClientY + window.scrollY) - dragStartY;
+    // 元素在 scale(Z) 内，视觉位移 (dx,dy) 对应未缩放平移 (dx/Z,dy/Z)
+    dragStage.style.transform = 'translate(' + (dx / Z) + 'px,' + (dy / Z) + 'px)';
+  }
+  // 拖到视口边缘时自动滚动画布，把页面引出画面外（无需「蹭」到边缘极限）
+  function autoScrollTick() {
+    autoScrollRAF = 0;
+    if (!dragStage || !dragMoved) return;
+    const EDGE = 60, MAX = 26;   // 触发带宽 / 单帧最大滚动量
+    const ramp = (dist) => Math.ceil(MAX * (1 - Math.max(0, dist) / EDGE));
+    let sx = 0, sy = 0;
+    if (lastClientX < EDGE) sx = -ramp(lastClientX);
+    else if (lastClientX > window.innerWidth - EDGE) sx = ramp(window.innerWidth - lastClientX);
+    if (lastClientY < EDGE) sy = -ramp(lastClientY);
+    else if (lastClientY > window.innerHeight - EDGE) sy = ramp(window.innerHeight - lastClientY);
+    if (sx || sy) {
+      window.scrollBy(sx, sy);
+      updateDragTransform();   // 画布滚了，重算 transform 让页面跟住光标
+      autoScrollRAF = requestAnimationFrame(autoScrollTick);
+    }
+  }
+  function maybeAutoScroll() {
+    if (!autoScrollRAF) autoScrollRAF = requestAnimationFrame(autoScrollTick);
+  }
   window.addEventListener('mousedown', (e) => {
     if (!layoutMode || spaceDown) return;
     const st = e.target.closest('.flow > .stage');
     if (!st) return;
-    dragStage = st; dragStartX = e.clientX; dragStartY = e.clientY; dragMoved = false;
+    dragStage = st;
+    dragStartX = e.clientX + window.scrollX; dragStartY = e.clientY + window.scrollY;
+    lastClientX = e.clientX; lastClientY = e.clientY; dragMoved = false;
     e.preventDefault();
   }, true);
   window.addEventListener('mousemove', (e) => {
     if (!dragStage) return;
-    const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+    lastClientX = e.clientX; lastClientY = e.clientY;
+    const dx = (e.clientX + window.scrollX) - dragStartX, dy = (e.clientY + window.scrollY) - dragStartY;
     if (!dragMoved && Math.abs(dx) + Math.abs(dy) < 4) return;   // 抖动阈值
     if (!dragMoved) {
       dragMoved = true;
@@ -2574,11 +2607,12 @@
       if (ov) ov.style.visibility = 'hidden';
       canvas.querySelectorAll(':scope > .link-tag').forEach(n => n.style.visibility = 'hidden');
     }
-    // 元素在 scale(Z) 内，视觉位移 (dx,dy) 对应未缩放平移 (dx/Z,dy/Z)
-    dragStage.style.transform = 'translate(' + (dx / Z) + 'px,' + (dy / Z) + 'px)';
+    updateDragTransform();
+    maybeAutoScroll();
   });
   window.addEventListener('mouseup', (e) => {
     if (!dragStage) return;
+    if (autoScrollRAF) { cancelAnimationFrame(autoScrollRAF); autoScrollRAF = 0; }
     const st = dragStage; dragStage = null;
     st.style.transform = '';
     st.classList.remove('dragging');
